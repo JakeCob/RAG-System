@@ -17,6 +17,85 @@ import pytest
 
 from tests.mocks.mock_llm import MockLLMClient
 from tests.mocks.mock_vectordb import MockLanceDB
+from tests.mocks.data_generators import (
+    RAW_HTML_GOV_SITE,
+    CLEANED_MARKDOWN_GOV_SITE,
+    BROKEN_ENCODING_HTML,
+    MALFORMED_PDF_BYTES,
+    generate_mock_pdf_bytes,
+    MockCrawlResult,
+)
+
+
+# =============================================================================
+# Data Source Mocks (P1-2: The Fake Internet)
+# =============================================================================
+
+
+@pytest.fixture
+def mock_web_content() -> dict[str, str]:
+    """Provide raw HTML and expected Markdown for a simulated government site.
+    
+    Returns:
+        dict: Keys 'html' (raw) and 'markdown' (cleaned).
+    """
+    return {
+        "html": RAW_HTML_GOV_SITE,
+        "markdown": CLEANED_MARKDOWN_GOV_SITE,
+    }
+
+
+@pytest.fixture
+def mock_broken_web_content() -> bytes:
+    """Provide a byte string with mixed encoding issues.
+    
+    Returns:
+        bytes: Raw content with latin-1 and utf-8 mix.
+    """
+    return BROKEN_ENCODING_HTML
+
+
+@pytest.fixture
+def mock_pdf_file():
+    """Provide a BytesIO object simulating a loaded PDF file.
+    
+    Returns:
+        BytesIO: A stream containing valid PDF bytes.
+    """
+    return generate_mock_pdf_bytes()
+
+
+@pytest.fixture
+def mock_malformed_pdf_file() -> bytes:
+    """Provide a byte string simulating a corrupted PDF file.
+    
+    Returns:
+        bytes: Invalid PDF content.
+    """
+    return MALFORMED_PDF_BYTES
+
+
+@pytest.fixture
+def mock_crawl_result(mock_web_content) -> MockCrawlResult:
+    """Provide a mock result object matching crawl4ai's output structure.
+    
+    Args:
+        mock_web_content: Fixture providing the content.
+        
+    Returns:
+        MockCrawlResult: Pydantic object with markdown and metadata.
+    """
+    return MockCrawlResult(
+        markdown=mock_web_content["markdown"],
+        url="https://gov.local/notice/123",
+        metadata={
+            "title": "Department of Bureaucracy - Public Notice 123",
+            "date": "2025-01-15",
+            "language": "en",
+        },
+        html=mock_web_content["html"],
+        success=True,
+    )
 
 
 # =============================================================================

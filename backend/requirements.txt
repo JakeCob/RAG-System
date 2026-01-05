@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+lancedb
+psycopg2-binary
+pydantic
+sqlalchemy
+python-multipart
+langchain-community
+selenium
+unstructured
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib

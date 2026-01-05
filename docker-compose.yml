@@ -1,0 +1,38 @@
+services:
+  backend:
+    build: ./backend
+    container_name: roma_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - lancedb_data:/data/lancedb
+    environment:
+      - LANCEDB_URI=/data/lancedb
+      - POSTGRES_URL=postgresql://roma:secret_vibes@db:5432/metadata_db
+    depends_on:
+      - db
+    networks:
+      - roma_net
+
+  db:
+    image: postgres:15-alpine
+    container_name: roma_postgres
+    environment:
+      POSTGRES_USER: roma
+      POSTGRES_PASSWORD: secret_vibes
+      POSTGRES_DB: metadata_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - roma_net
+
+volumes:
+  postgres_data:
+  lancedb_data:
+
+networks:
+  roma_net:
+    driver: bridge

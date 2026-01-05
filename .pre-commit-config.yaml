@@ -1,0 +1,107 @@
+# Pre-commit hooks for "Front-Loading the Pain"
+# Run: pre-commit install
+# Manual run: pre-commit run --all-files
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # ==========================================================================
+  # RUFF - Fast Python Linter & Formatter (replaces black, isort, flake8)
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.2.1
+    hooks:
+      # Run the linter (with auto-fix enabled)
+      - id: ruff
+        name: ruff (lint + fix)
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi]
+
+      # Run the formatter
+      - id: ruff-format
+        name: ruff (format)
+        types_or: [python, pyi]
+
+  # ==========================================================================
+  # MYPY - Static Type Checking (Strict Mode)
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        name: mypy (strict type check)
+        # Additional dependencies needed for type checking
+        additional_dependencies:
+          - pydantic>=2.6.0
+          - pydantic-settings>=2.1.0
+          - fastapi>=0.109.0
+          - httpx>=0.26.0
+          - types-requests>=2.31.0
+        args:
+          - --strict
+          - --show-error-codes
+          - --config-file=pyproject.toml
+        # Only check src/ and tests/ directories
+        files: ^(src|tests)/
+        types: [python]
+
+  # ==========================================================================
+  # GENERAL FILE HYGIENE
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Prevent commits to main/master
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+      # File hygiene
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
+      # Python-specific
+      - id: check-ast
+        name: validate Python syntax
+      - id: debug-statements
+        name: check for debug statements (pdb, breakpoint)
+      - id: check-docstring-first
+
+      # Security
+      - id: detect-private-key
+
+  # ==========================================================================
+  # PYTEST CHECK (Optional - ensures tests pass before commit)
+  # Commented out by default as it can slow down commits
+  # ==========================================================================
+  # - repo: local
+  #   hooks:
+  #     - id: pytest-check
+  #       name: pytest (quick check)
+  #       entry: pytest
+  #       args: [--tb=short, -q, tests/]
+  #       language: system
+  #       pass_filenames: false
+  #       always_run: true
+
+# ==========================================================================
+# CI CONFIGURATION
+# ==========================================================================
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

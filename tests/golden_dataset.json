@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Golden Dataset for RAG Evaluation - Reference: docs/04_TEST_PLAN.md Section 6.2",
+  "version": "0.1.0",
+  "test_cases": [
+    {
+      "id": 1,
+      "question": "What is the Q3 cloud budget?",
+      "ground_truth_key_phrase": ["$45,000", "45k"],
+      "retrieval_target_source_id": "gdrive_finance_q3.pdf",
+      "category": "financial",
+      "difficulty": "easy"
+    },
+    {
+      "id": 2,
+      "question": "How do I reset my password?",
+      "ground_truth_key_phrase": ["settings page"],
+      "retrieval_target_source_id": "wiki_password_reset.md",
+      "category": "help_desk",
+      "difficulty": "easy"
+    },
+    {
+      "id": 3,
+      "question": "Who is the project lead?",
+      "ground_truth_key_phrase": ["Sarah Connor"],
+      "retrieval_target_source_id": "project_alpha_roster.xlsx",
+      "category": "personnel",
+      "difficulty": "easy"
+    },
+    {
+      "id": 4,
+      "question": "Summarize the safety policy.",
+      "ground_truth_key_phrase": ["zero trust", "helmets"],
+      "retrieval_target_source_id": "safety_policy_v2.docx",
+      "category": "policy",
+      "difficulty": "medium"
+    },
+    {
+      "id": 5,
+      "question": "What is the API rate limit?",
+      "ground_truth_key_phrase": ["100 requests per minute"],
+      "retrieval_target_source_id": "api_docs_site",
+      "category": "technical",
+      "difficulty": "easy"
+    }
+  ],
+  "metadata": {
+    "created_date": "2025-01-05",
+    "purpose": "Regression testing for RAG system accuracy",
+    "pass_threshold": 0.8,
+    "notes": "Test cases from TEST_PLAN.md Section 6.2 - expand as needed"
+  }
+}

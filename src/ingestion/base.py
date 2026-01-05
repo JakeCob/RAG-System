@@ -1,3 +1,4 @@
+import uuid
 from typing import List, Union, Dict, Any
 from src.app.schemas.parser import ParsedChunk
 
@@ -15,7 +16,35 @@ class BaseParser:
         Returns:
             List[ParsedChunk]: A list of structured chunks.
         """
-        pass
+        if isinstance(content, bytes):
+            # Simple decode for bytes, assuming utf-8 for this skeleton
+            try:
+                text = content.decode('utf-8')
+            except UnicodeDecodeError:
+                # Fallback for testing purposes if utf-8 fails
+                text = content.decode('latin-1')
+        else:
+            text = content
+            
+        if not text:
+            raise ValueError("Content cannot be empty.")
+            
+        chunks_text = self.chunk(text)
+        parsed_chunks = []
+        for i, chunk_text in enumerate(chunks_text):
+            parsed_chunks.append(
+                ParsedChunk(
+                    chunk_id=str(uuid.uuid4()),
+                    content=chunk_text,
+                    chunk_index=i,
+                    layout_type="text",
+                    # Metadata propagation is handled by the caller or specialized parsers usually,
+                    # but for the skeleton, we return the chunks. 
+                    # The metadata provided in args is often used to enrich the result wrapper, 
+                    # but ParsedChunk doesn't have a metadata field.
+                )
+            )
+        return parsed_chunks
 
     def chunk(self, text: str, limit: int = 1000) -> List[str]:
         """
@@ -28,4 +57,4 @@ class BaseParser:
         Returns:
             List[str]: A list of text chunks.
         """
-        pass
+        return [text[i:i+limit] for i in range(0, len(text), limit)]

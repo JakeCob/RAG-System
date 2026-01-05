@@ -13,7 +13,7 @@ def mock_vector_store():
 @pytest.fixture
 def mock_llm_client():
     m = MagicMock()
-    m.generate = AsyncMock()
+    m.complete = AsyncMock()
     return m
 
 @pytest.fixture
@@ -55,14 +55,14 @@ async def test_retrieve_calls_vector_store_and_returns_context_nodes(rag_engine,
 async def test_generate_answer_constructs_prompt_with_query_and_context(rag_engine, mock_llm_client, mock_context_data):
     # Arrange
     query = "What colors are mentioned?"
-    mock_llm_client.generate.return_value = "Blue and Green."
+    mock_llm_client.complete.return_value = "Blue and Green."
 
     # Act
     await rag_engine.generate_answer(query, mock_context_data)
 
     # Assert
-    mock_llm_client.generate.assert_awaited()
-    call_args = mock_llm_client.generate.call_args
+    mock_llm_client.complete.assert_awaited()
+    call_args = mock_llm_client.complete.call_args
     # Use repr to convert args/kwargs to string for easy checking
     call_args_str = str(call_args)
     
@@ -74,7 +74,7 @@ async def test_generate_answer_constructs_prompt_with_query_and_context(rag_engi
 async def test_generate_answer_returns_strict_answer_object(rag_engine, mock_llm_client, mock_context_data):
     # Arrange
     query = "What colors are mentioned?"
-    mock_llm_client.generate.return_value = "Blue and Green."
+    mock_llm_client.complete.return_value = "Blue and Green."
 
     # Act
     answer = await rag_engine.generate_answer(query, mock_context_data)
@@ -92,7 +92,7 @@ async def test_generate_answer_no_context(rag_engine, mock_llm_client):
     query = "Unknown topic"
     context = []
     # Mock return value needed for Answer construction even if context is empty
-    mock_llm_client.generate.return_value = "I don't know."
+    mock_llm_client.complete.return_value = "I don't know."
     
     # Act
     answer = await rag_engine.generate_answer(query, context)

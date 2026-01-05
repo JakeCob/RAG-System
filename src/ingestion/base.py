@@ -21,7 +21,6 @@ class BaseParser:
             try:
                 text = content.decode('utf-8')
             except UnicodeDecodeError:
-                # Fallback for testing purposes if utf-8 fails
                 text = content.decode('latin-1')
         else:
             text = content
@@ -31,17 +30,14 @@ class BaseParser:
             
         chunks_text = self.chunk(text)
         parsed_chunks = []
+        
         for i, chunk_text in enumerate(chunks_text):
             parsed_chunks.append(
                 ParsedChunk(
                     chunk_id=str(uuid.uuid4()),
                     content=chunk_text,
                     chunk_index=i,
-                    layout_type="text",
-                    # Metadata propagation is handled by the caller or specialized parsers usually,
-                    # but for the skeleton, we return the chunks. 
-                    # The metadata provided in args is often used to enrich the result wrapper, 
-                    # but ParsedChunk doesn't have a metadata field.
+                    layout_type="text"
                 )
             )
         return parsed_chunks

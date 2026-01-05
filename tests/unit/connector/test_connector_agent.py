@@ -5,10 +5,17 @@ Test Class: TestConnectorAgent
 """
 
 import pytest
-
+import os
+import tempfile
+from src.ingestion.connector import ConnectorAgent
+from src.app.schemas.connector import ConnectorOutput
 
 class TestConnectorAgent:
     """Tests for the Connector Agent ("The Hand")."""
+
+    @pytest.fixture
+    def connector(self):
+        return ConnectorAgent()
 
     @pytest.mark.unit
     def test_retry_logic_backoff(self) -> None:
@@ -36,10 +43,30 @@ class TestConnectorAgent:
         pytest.skip("Not implemented - P1-2")
 
     @pytest.mark.unit
-    def test_local_file_ingestion(self) -> None:
+    def test_local_file_ingestion(self, connector) -> None:
         """Simulate a file added to a watched directory.
 
         Assert the connector picks it up and returns the correct
         file_path and metadata.
         """
-        pytest.skip("Not implemented - P1-2")
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, mode='w') as tmp:
+            tmp.write("Test content")
+            tmp_path = tmp.name
+        
+        try:
+            # Act
+            # Assuming process_file method
+            result = connector.process_file(tmp_path, source_type="local")
+            
+            # Assert
+            assert isinstance(result, ConnectorOutput)
+            assert result.file_path == tmp_path
+            assert result.file_size_bytes > 0
+            assert result.checksum is not None
+            assert "source_type" in result.source_metadata
+            assert result.source_metadata["source_type"] == "local"
+            
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)

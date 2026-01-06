@@ -4,45 +4,130 @@ Reference: docs/04_TEST_PLAN.md Section 4
 Test Tool: TestClient (FastAPI)
 """
 
-import pytest
+from __future__ import annotations
 
+from typing import AsyncIterator
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.api import app
+
+
+@pytest.fixture
+async def async_client() -> AsyncIterator[AsyncClient]:
+    """Provide an Httpx AsyncClient wired to the FastAPI ASGI app."""
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+
+
+def _build_multipart_body(filename: str, data: bytes, content_type: str) -> tuple[str, bytes]:
+    """Construct a minimal multipart/form-data payload for UploadFile."""
+
+    boundary = "----pytestboundary"
+    payload = data.decode("latin1")
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+        f"{payload}\r\n"
+        f"--{boundary}--\r\n"
+    ).encode()
+    return boundary, body
 
 class TestBackendAPI:
     """Backend API contract tests."""
 
     @pytest.mark.integration
-    def test_api_health_check(self) -> None:
-        """GET /health returns 200 OK.
+    @pytest.mark.anyio
+    async def test_api_health_check(self, async_client: AsyncClient) -> None:
+        """GET /health returns 200 OK."""
 
-        Expected response: {"db": "connected", "agents": "ready"}
-        """
-        pytest.skip("Not implemented - requires FastAPI app")
-
-    @pytest.mark.integration
-    def test_query_endpoint_valid(self) -> None:
-        """POST /query with {"text": "Hello"} returns 200.
-
-        Response structure must match TailoredResponse schema.
-        """
-        pytest.skip("Not implemented - requires FastAPI app")
+        response = await async_client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"db": "connected", "agents": "ready"}
 
     @pytest.mark.integration
-    def test_query_streaming(self) -> None:
-        """POST /query with stream=True returns SSE stream.
+    @pytest.mark.anyio
+    async def test_query_endpoint_valid(self, async_client: AsyncClient) -> None:
+        """POST /query with {"text": "Hello"} returns TailorOutput payload."""
 
-        Assert response is a generator/stream of chunks.
-        """
-        pytest.skip("Not implemented - requires FastAPI app")
+        response = await async_client.post("/query", json={"text": "Hello"})
+        assert response.status_code == 200
+        body = response.json()
+
+        # TailorOutput fields
+        assert body["tone_used"] == "General"
+        assert isinstance(body["confidence_score"], float)
+        assert isinstance(body["content"], str) and body["content"]
+        assert isinstance(body["follow_up_suggestions"], list)
+
+        citations = body["citations"]
+        assert isinstance(citations, list) and citations
+        first = citations[0]
+        assert {"source_id", "chunk_id", "text_snippet"}.issubset(first.keys())
 
     @pytest.mark.integration
-    def test_ingest_upload_file(self) -> None:
-        """POST /ingest with multipart PDF returns 202 Accepted.
+    @pytest.mark.anyio
+    async def test_query_streaming(self, async_client: AsyncClient) -> None:
+        """POST /query with stream=True returns SSE stream."""
 
-        Response must include task_id for async processing.
-        """
-        pytest.skip("Not implemented - requires FastAPI app")
+        async with async_client.stream(
+            "POST", "/query", json={"text": "Stream me", "stream": True}
+        ) as response:
+            assert response.status_code == 200
+
+            token_events: list[str] = []
+            complete_event: str | None = None
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                if line.startswith("event: token"):
+                    token_events.append(line)
+                if line.startswith("event: complete"):
+                    complete_event = line
+                    break
+
+            assert token_events, "Expected at least one streamed token event."
+            assert complete_event is not None, "Expected terminal complete event."
 
     @pytest.mark.integration
-    def test_ingest_auth_middleware(self) -> None:
+    @pytest.mark.anyio
+    async def test_ingest_upload_file(self, async_client: AsyncClient) -> None:
+        """POST /ingest with multipart PDF returns 202 Accepted."""
+
+        boundary, body = _build_multipart_body(
+            filename="example.pdf",
+            data=b"%PDF-1.4 mock",
+            content_type="application/pdf",
+        )
+        headers = {
+            "Authorization": "Bearer local-dev-token",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        }
+        response = await async_client.post("/ingest", content=body, headers=headers)
+
+        assert response.status_code == 202
+        body = response.json()
+        assert body["status"] == "queued"
+        assert body["filename"] == "example.pdf"
+        assert body["task_id"]
+
+    @pytest.mark.integration
+    @pytest.mark.anyio
+    async def test_ingest_auth_middleware(self, async_client: AsyncClient) -> None:
         """Request without Bearer Token returns 401 Unauthorized."""
-        pytest.skip("Not implemented - requires FastAPI app")
+
+        boundary, body = _build_multipart_body(
+            filename="example.pdf",
+            data=b"%PDF-1.4 mock",
+            content_type="application/pdf",
+        )
+        headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+        response = await async_client.post("/ingest", content=body, headers=headers)
+
+        assert response.status_code == 401
+        detail = response.json()["detail"]
+        assert detail["error_code"] == "ERR_CONNECTOR_AUTH"

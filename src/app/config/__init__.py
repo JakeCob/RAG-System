@@ -1,7 +1,5 @@
-"""Configuration management using pydantic-settings.
+"""Configuration management using pydantic-settings."""
 
-Contains:
-- Settings class with environment variable loading
-- Database configuration
-- API keys and secrets management
-"""
+from app.config.settings import APISettings, get_settings
+
+__all__ = ["APISettings", "get_settings"]

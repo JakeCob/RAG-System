@@ -11,6 +11,7 @@ from typing import Protocol
 from app.agents.tailor import TailorAgent
 from app.exceptions import AgentFailureError
 from app.guardrails import GuardrailsAgent
+from app.memory import MemoryAgent
 from app.schemas import (
     AgentFailure,
     ConversationState,
@@ -36,39 +37,20 @@ class GuardrailsProtocol(Protocol):
 
 
 class MemoryAgentProtocol(Protocol):
-    async def retrieve(self, query_text: str) -> list[RetrievedContext]:
+    async def retrieve(
+        self,
+        *,
+        query_text: str,
+        top_k: int = 5,
+        min_relevance_score: float = 0.7,
+        filters: dict[str, object] | None = None,
+    ) -> list[RetrievedContext]:
         ...
 
 
 class TailorProtocol(Protocol):
     async def process(self, payload: TailorInput) -> TailorOutput:
         ...
-
-
-class StaticMemoryAgent:
-    """Fallback memory agent returning deterministic snippets."""
-
-    async def retrieve(self, query_text: str) -> list[RetrievedContext]:
-        focus = "comparison" if "compare" in query_text.lower() else "overview"
-        normalized = query_text.strip() or "the system"
-        return [
-            RetrievedContext(
-                chunk_id=f"chunk-{focus}-primary",
-                content=f"{normalized} relies on guardrails, memory retrieval, and the tailor agent.",
-                source_id="roma_design_doc",
-                source_url="https://docs.local/roma",
-                relevance_score=0.93,
-                metadata={"source_type": "local", "focus": focus},
-            ),
-            RetrievedContext(
-                chunk_id=f"chunk-{focus}-secondary",
-                content="Dolphin parser prepares layout-aware chunks before LanceDB retrieval.",
-                source_id="dolphin_ingestion_playbook",
-                source_url="https://docs.local/dolphin",
-                relevance_score=0.9,
-                metadata={"source_type": "gdrive", "focus": "ingestion"},
-            ),
-        ]
 
 
 class ROMAOrchestrator:
@@ -85,7 +67,7 @@ class ROMAOrchestrator:
         max_depth: int = MAX_ROMA_DEPTH,
     ) -> None:
         self._guardrails = guardrails or GuardrailsAgent()
-        self._memory_agent = memory_agent or StaticMemoryAgent()
+        self._memory_agent = memory_agent or MemoryAgent(bootstrap_documents=True)
         self._tailor_agent = tailor_agent or TailorAgent()
         self._stream_chunk_pause = stream_chunk_pause_ms / 1000
         self._state_store = state_store or {}
@@ -196,12 +178,8 @@ class ROMAOrchestrator:
             except AgentFailureError as exc:
                 step.status = "failed"
                 return [], exc
-            else:
-                if isinstance(retrieved, AgentFailure):
-                    step.status = "failed"
-                    return [], self._as_error(retrieved)
-                contexts.extend(retrieved)
-                step.status = "completed"
+            contexts.extend(retrieved)
+            step.status = "completed"
 
         return contexts, None
 

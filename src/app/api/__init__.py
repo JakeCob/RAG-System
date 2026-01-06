@@ -8,7 +8,6 @@ import uuid
 from collections.abc import AsyncGenerator
 
 from fastapi import (
-    BackgroundTasks,
     Depends,
     FastAPI,
     File,
@@ -24,6 +23,8 @@ from fastapi.responses import StreamingResponse
 from app.agents import ROMAOrchestrator
 from app.config import APISettings, get_settings
 from app.exceptions import AgentFailureError
+from app.ingestion import IngestionService
+from app.memory import MemoryAgent
 from app.schemas import (
     AgentFailure,
     ErrorCodes,
@@ -38,8 +39,11 @@ from app.schemas import (
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+memory_agent = MemoryAgent(bootstrap_documents=True)
+ingestion_service = IngestionService(memory_agent=memory_agent)
 orchestrator = ROMAOrchestrator(
-    stream_chunk_pause_ms=settings.stream_chunk_pause_ms
+    stream_chunk_pause_ms=settings.stream_chunk_pause_ms,
+    memory_agent=memory_agent,
 )
 
 app = FastAPI(
@@ -143,7 +147,6 @@ async def _noop_ingest_job(filename: str, size_bytes: int) -> None:
 
 @app.post("/ingest", status_code=status.HTTP_202_ACCEPTED, response_model=IngestResponse)
 async def ingest_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     _: None = Depends(_authorize_ingest),
 ) -> IngestResponse:
@@ -161,6 +164,28 @@ async def ingest_document(
         )
 
     task_id = str(uuid.uuid4())
-    background_tasks.add_task(_noop_ingest_job, file.filename, len(payload))
-    logger.info("Queued ingest task %s for %s", task_id, file.filename)
+    try:
+        await ingestion_service.ingest_document(
+            content=payload,
+            filename=file.filename,
+            source_id=f"upload::{task_id}",
+            source_type="local",
+            extra_metadata={"content_type": file.content_type or "application/octet-stream"},
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_agent_failure(
+                agent_id="api.ingest",
+                error_code=ErrorCodes.PARSER_UNSUPPORTED,
+                message=str(exc),
+            ),
+        ) from exc
+    except AgentFailureError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=jsonable_encoder(exc.failure),
+        ) from exc
+
+    logger.info("Ingested %s via task %s", file.filename, task_id)
     return IngestResponse(task_id=task_id, filename=file.filename, status="queued")

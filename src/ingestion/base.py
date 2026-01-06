@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Union, Dict, Any
-from src.app.schemas.parser import ParsedChunk
+from app.schemas.parser import ParsedChunk
 
 class BaseParser:
     """Base class for all ingestion parsers."""

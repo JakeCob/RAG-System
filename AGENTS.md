@@ -24,6 +24,12 @@ User Request → Guardrails → Orchestrator (ROMA) → Memory Agent → Tailor 
               Connector → Parser (Dolphin) → LanceDB
 ```
 
+### Phase 3 Frontend Integration
+- **Shared Schemas:** TypeScript mirrors of every Pydantic schema now live in `frontend/src/types/index.ts`. Any schema change in `src/app/schemas/` must be reflected there before merging.
+- **API Client:** `frontend/src/lib/api.ts` wraps `/health`, `/query` (sync + SSE), and `/ingest` with deterministic `AgentFailure` handling so UX can display guardrail errors verbatim.
+- **ROMA Console UI:** `frontend/src/app/page.tsx` provides the persona selector, query form, grounded answer panel (with numbered citations), and ingestion card (Bearer token required).
+- **Start Script:** `./start.sh` boots FastAPI (port 8000) and Next.js (port 3000) together for demos/tests.
+
 ### Agent Roles
 | Agent | Role | Module |
 |-------|------|--------|
@@ -115,6 +121,7 @@ frontend/
 2. Create test in `tests/api/test_backend_api.py`
 3. Update frontend types in `frontend/src/types/`
 4. Add API client method in `frontend/src/lib/api.ts`
+5. Reflect UI/UX impact in `frontend/src/app/` (ROMA console or new route) and document behavior in `docs/06_FRONTEND_PLAYBOOK.md`
 
 ### Modifying schemas
 1. Update `src/app/schemas/*.py`

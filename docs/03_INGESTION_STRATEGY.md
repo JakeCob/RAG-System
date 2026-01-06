@@ -154,3 +154,14 @@ We employ a "Pipe & Filter" architecture.
 *   **Action:** Catch parsing exceptions (e.g., `PDFSyntaxError`).
 *   **Fallback:** Attempt basic text extraction (ignoring layout).
 *   **Reporting:** Return `AgentFailure` object (as defined in `AGENT_SPECS.md`) with `recoverable=False`.
+
+## 7. Phase 3 Frontend Hook
+
+The Next.js ROMA console pipes file uploads directly into `POST /ingest`:
+
+1. The operator selects a document + Bearer token in `frontend/src/app/page.tsx`.
+2. The file is streamed via `frontend/src/lib/api.ts` using `FormData` with strict error handling.
+3. FastAPI validates the token (`settings.ingest_auth_token`) before calling `IngestionService.ingest_document`.
+4. The UI surfaces the returned `task_id`, `filename`, and `status` to confirm the job queue.
+
+> Keep this contract stable—QA relies on it for manual ingestion smoke tests, and TypeScript mirrors live in `frontend/src/types/index.ts`.

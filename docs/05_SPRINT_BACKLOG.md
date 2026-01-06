@@ -175,3 +175,28 @@ Construct the FastAPI backend that exposes the Multi-Agent system to the fronten
 
 **Dependencies:**
 *   All Previous Tickets (CORE-01, INGEST-01/02, MEM-01, AGENT-01/02)
+
+---
+
+## [P3-06] Frontend Integration & Shared Contracts
+
+**Priority:** P0  
+**Assignee:** Frontend Guild  
+**Description:** Deliver a minimal-yet-functional ROMA console that consumes the FastAPI contracts, mirrors backend schemas, and exposes ingestion/query capabilities with grounding/citation UX.
+
+**Technical Requirements:**
+*   Mirror every schema from `src/app/schemas/api.py`, `memory.py`, `tailor.py`, and `base.py` inside `frontend/src/types/index.ts`.
+*   Implement a typed API client (`frontend/src/lib/api.ts`) that wraps `/health`, `/query` (sync & SSE), and `/ingest` with deterministic `AgentFailure` handling.
+*   Build the Next.js 14 App Router experience (`frontend/src/app/page.tsx`) featuring:
+    *   Persona selector + query textarea with validation and loading states.
+    *   Grounded answer card that renders Tailor content, tone, confidence, follow-up suggestions, and numbered citations.
+    *   Ingestion form (file upload + Bearer token) surfacing `IngestResponse` details.
+*   Ensure `npm run lint`, `npm run typecheck`, and `npm run test` pass alongside backend quality gates.
+
+**Acceptance Criteria:**
+- [x] `/health` badges render on load; failures show fallback copy.
+- [x] Query submission returns Tailor output with citations and AgentFailure errors when guardrails trip.
+- [x] Ingestion form rejects missing file/token and displays queued task metadata on success.
+- [x] Docs updated: README, AGENTS, CLAUDE, `docs/01-06`, plus new `docs/06_FRONTEND_PLAYBOOK.md`.
+
+**Dependencies:** API-01

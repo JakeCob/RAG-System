@@ -165,6 +165,31 @@ class OrchestratorOutput(BaseModel):
     processing_time_total_ms: float
 ```
 
+### 2.1 API Contracts (Phase 3)
+These models are exposed over FastAPI and mirrored in `frontend/src/types/index.ts`.
+
+```python
+class HealthStatus(BaseModel):
+    db: Literal["connected", "degraded", "offline"]
+    agents: Literal["ready", "initializing", "degraded"]
+
+class QueryRequest(BaseModel):
+    text: str
+    persona: Persona = "General"
+    stream: bool = False
+
+class StreamEvent(BaseModel):
+    event: Literal["token", "complete", "error"]
+    data: dict[str, Any] | str
+
+class IngestResponse(BaseModel):
+    task_id: str
+    filename: str
+    status: Literal["queued", "processing", "completed"]
+```
+
+> **Frontend parity:** Whenever these models change, update both the backend Pydantic schema (`src/app/schemas/api.py`) and the TypeScript mirrors so the ROMA console continues to typecheck.
+
 ---
 
 ## 3. State Management Protocol

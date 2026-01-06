@@ -34,6 +34,24 @@ This Agentic RAG system acts as an intelligent force multiplier by combining **D
 
 </system_architecture>
 
+<frontend_experience>
+
+### 3. Frontend Experience (Phase 3)
+1. **ROMA Console (Next.js 14)**:
+    *   Landing page located at `frontend/src/app/page.tsx`.
+    *   Provides persona selector, free-form query input, and a grounded answer panel that renders Tailor citations numerically.
+    *   Includes an ingestion card so operators can upload files alongside a Bearer token that maps to the FastAPI `/ingest` auth guard.
+2. **Shared Contracts**:
+    *   TypeScript interfaces in `frontend/src/types/index.ts` are generated to mirror every Pydantic schema (`AgentFailure`, `TailorOutput`, `QueryRequest`, SSE envelopes, etc.).
+    *   Any backend schema change must propagate here plus to the API client before release.
+3. **API Client**:
+    *   `frontend/src/lib/api.ts` provides deterministic helpers for `/health`, `/query` (sync + SSE), and `/ingest`.
+    *   Converts backend `AgentFailure` payloads into user-visible alerts and streams `StreamEvent` tokens for future progressive rendering.
+4. **Lifecycle**:
+    *   The top-level `start.sh` script launches both FastAPI (`uvicorn app.api:app --app-dir src`) and Next.js (`npm run dev`) so designers and QA can exercise the full ROMA loop locally.
+
+</frontend_experience>
+
 <subsystem_definitions>
 
 ### DolphinParserService

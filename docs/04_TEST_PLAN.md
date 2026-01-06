@@ -136,13 +136,16 @@ We assume a modern component-based UI (e.g., React/Next.js/Vue).
     2.  `test_citation_rendering`: Render a message with `citations=[{source_id: "doc1"}]`. Assert a clickable link/tooltip appears.
     3.  `test_loading_state_spinner`: Assert spinner is visible while `isStreaming` is true.
     4.  `test_error_toast_display`: Trigger an API error. Assert a "Toast" notification appears with the error message.
+    5.  **Phase 3 Addition** – `test_ingest_form_validation`: Verify missing file/token surfaces validation copy (matches ROMA console UX).
+    6.  **Phase 3 Addition** – `test_agent_failure_alert`: Provide `AgentFailure` payload and assert alert renders code + message verbatim.
 *   **E2E Tests (Browser Automation):**
     1.  `test_full_user_flow`:
         *   Login -> Navigate to Dashboard.
         *   Upload `test_doc.pdf`.
         *   Wait for "Ingestion Complete" notification.
-        *   Ask "What is in test_doc?".
+        *   Ask "What is in test_doc?" via ROMA console persona dropdown.
         *   Assert Answer contains expected text.
+        *   Assert citations show numeric badges and valid URLs when provided.
 
 ---
 ## 6. RAG Evaluation Metrics (Defining "Done")

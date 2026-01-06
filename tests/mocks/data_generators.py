@@ -3,17 +3,21 @@ from typing import Any
 
 from pydantic import BaseModel
 
+
 # =============================================================================
 # Mock Objects
 # =============================================================================
 
+
 class MockCrawlResult(BaseModel):
     """Simulates crawl4ai.CrawlResult object."""
+
     markdown: str
     url: str
     metadata: dict[str, Any]
     html: str = ""
     success: bool = True
+
 
 # =============================================================================
 # Web Content Data
@@ -37,8 +41,11 @@ RAW_HTML_GOV_SITE = """
     <div class="main-content">
         <h2>Public Notice: 2025-Q1 Updates</h2>
         <p><strong>Date:</strong> January 15, 2025</p>
-        <p>This is an official notice regarding the <em>simulation</em> of government data.</p>
-        
+        <p>
+            This is an official notice regarding the
+            <em>simulation</em> of government data.
+        </p>
+
         <table border="1">
             <tr>
                 <th>Category</th>
@@ -101,6 +108,7 @@ Contact: admin@gov.local | © 2025
 
 MALFORMED_PDF_BYTES = b"%PDF-1.4\n...garbage content... %%EOF"
 
+
 def generate_mock_pdf_bytes() -> BytesIO:
     """Generates a valid-enough PDF byte stream for testing."""
     # This is a minimal valid PDF structure
@@ -113,7 +121,8 @@ def generate_mock_pdf_bytes() -> BytesIO:
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>\n"
         b"endobj\n"
         b"3 0 obj\n"
-        b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>\n"
+        b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> "
+        b"/MediaBox [0 0 612 792] /Contents 5 0 R >>\n"
         b"endobj\n"
         b"4 0 obj\n"
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\n"

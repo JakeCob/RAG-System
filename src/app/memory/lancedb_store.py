@@ -159,9 +159,7 @@ class LanceDBStore:
             metadata = json.loads(result["metadata"])
 
             # Apply metadata filters if present
-            if filters and not all(
-                metadata.get(k) == v for k, v in filters.items()
-            ):
+            if filters and not all(metadata.get(k) == v for k, v in filters.items()):
                 continue
 
             # Only add if we haven't reached top_k yet

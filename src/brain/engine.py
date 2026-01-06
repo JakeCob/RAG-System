@@ -6,7 +6,7 @@ Reference: Phase 2-2 RAG Engine Implementation
 
 from typing import Any, Protocol
 
-from src.brain.schemas import (
+from brain.schemas import (
     Answer,
     Citation,
     ContextNode,

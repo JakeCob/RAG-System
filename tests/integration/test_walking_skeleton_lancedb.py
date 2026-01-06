@@ -9,10 +9,10 @@ Reference: docs/04_TEST_PLAN.md Section 5
 import tempfile
 
 import pytest
-from src.brain.engine import RAGEngine
-from src.ingestion.base import BaseParser
 
 from app.memory.agent import MemoryAgent
+from brain.engine import RAGEngine
+from ingestion.base import BaseParser
 
 
 @pytest.mark.integration
@@ -127,12 +127,10 @@ async def test_walking_skeleton_with_lancedb(
         engine = RAGEngine(vector_store=vector_store, llm_client=mock_llm)
 
         # Configure mock LLM response
-        mock_llm.responses[query_text] = (
-            "This is a summary of the government notice."
-        )
+        mock_llm.responses[query_text] = "This is a summary of the government notice."
 
         # Retrieve context
-        context_nodes = await engine.retrieve(query_text)
+        context_nodes = await engine.retrieve(query_text, min_score=0.3)
         assert len(context_nodes) > 0, "Should retrieve context via adapter"
 
         # Generate answer

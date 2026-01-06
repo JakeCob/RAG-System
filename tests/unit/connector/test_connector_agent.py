@@ -4,11 +4,14 @@ Reference: docs/04_TEST_PLAN.md Section 3.5
 Test Class: TestConnectorAgent
 """
 
-import pytest
 import os
 import tempfile
-from src.ingestion.connector import ConnectorAgent
-from src.app.schemas.connector import ConnectorOutput
+
+import pytest
+
+from app.schemas.connector import ConnectorOutput
+from ingestion.connector import ConnectorAgent
+
 
 class TestConnectorAgent:
     """Tests for the Connector Agent ("The Hand")."""
@@ -50,15 +53,15 @@ class TestConnectorAgent:
         file_path and metadata.
         """
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, mode='w') as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, mode="w") as tmp:
             tmp.write("Test content")
             tmp_path = tmp.name
-        
+
         try:
             # Act
             # Assuming process_file method
             result = connector.process_file(tmp_path, source_type="local")
-            
+
             # Assert
             assert isinstance(result, ConnectorOutput)
             assert result.file_path == tmp_path
@@ -66,7 +69,7 @@ class TestConnectorAgent:
             assert result.checksum is not None
             assert "source_type" in result.source_metadata
             assert result.source_metadata["source_type"] == "local"
-            
+
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)

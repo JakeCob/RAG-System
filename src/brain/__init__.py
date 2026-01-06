@@ -6,8 +6,8 @@ Provides the core RAG functionality:
 - Error handling: RAGFailure, RAGErrorCodes
 """
 
-from src.brain.engine import RAGEngine
-from src.brain.schemas import (
+from brain.engine import RAGEngine
+from brain.schemas import (
     Answer,
     Citation,
     ContextNode,

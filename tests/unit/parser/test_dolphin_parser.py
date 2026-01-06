@@ -5,8 +5,9 @@ Test Class: TestDolphinParser
 """
 
 import pytest
-from src.ingestion.dolphin import DolphinParser
-from src.app.schemas.parser import ParsedChunk
+
+from ingestion.dolphin import DolphinParser
+
 
 class TestDolphinParser:
     """Tests for the Dolphin Parser Agent ("The Eyes")."""
@@ -21,6 +22,7 @@ class TestDolphinParser:
 
         Expect AgentFailure (recoverable=False).
         """
+        _ = parser
         pytest.skip("Not implemented - P1-2")
 
     @pytest.mark.unit
@@ -36,7 +38,7 @@ class TestDolphinParser:
             # BaseParser raises ValueError, let's see if Dolphin overrides or catches
         except ValueError:
             return  # Acceptable behavior
-        
+
         assert isinstance(result, list)
         assert len(result) == 0
 
@@ -60,7 +62,9 @@ class TestDolphinParser:
         # Assert
         assert len(chunks) > 0
         # Find the chunk containing the table
-        table_chunk = next((c for c in chunks if "|" in c.content and "Column 1" in c.content), None)
+        table_chunk = next(
+            (c for c in chunks if "|" in c.content and "Column 1" in c.content), None
+        )
         assert table_chunk is not None
         assert table_chunk.layout_type == "table"
 

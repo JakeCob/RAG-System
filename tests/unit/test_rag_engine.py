@@ -4,11 +4,12 @@ Reference: Phase 2-2 RAG Engine Implementation
 Tests for retrieval, answer generation, and unified query pipeline.
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
-from src.brain.engine import RAGEngine
-from src.brain.schemas import (
+import pytest
+
+from brain.engine import RAGEngine
+from brain.schemas import (
     Answer,
     Citation,
     ContextNode,
@@ -204,9 +205,7 @@ async def test_retrieve_with_top_k_parameter(
 
 
 @pytest.mark.asyncio
-async def test_retrieve_with_min_score_filters_results(
-    rag_engine, mock_vector_store
-):
+async def test_retrieve_with_min_score_filters_results(rag_engine, mock_vector_store):
     """Test that retrieve filters results below min_score."""
     # Arrange
     query = "test query"
@@ -230,9 +229,7 @@ async def test_retrieve_with_min_score_filters_results(
 async def test_retrieve_uses_config_defaults(mock_vector_store, mock_llm_client):
     """Test that retrieve uses default config values."""
     # Arrange
-    config = QueryConfig(
-        retrieve=RetrieveConfig(top_k=3, min_score=0.5)
-    )
+    config = QueryConfig(retrieve=RetrieveConfig(top_k=3, min_score=0.5))
     engine = RAGEngine(
         vector_store=mock_vector_store,
         llm_client=mock_llm_client,
@@ -340,9 +337,7 @@ async def test_query_returns_query_result(
 
 
 @pytest.mark.asyncio
-async def test_query_with_custom_config(
-    mock_vector_store, mock_llm_client
-):
+async def test_query_with_custom_config(mock_vector_store, mock_llm_client):
     """Test that query() respects custom configuration."""
     # Arrange
     engine = RAGEngine(vector_store=mock_vector_store, llm_client=mock_llm_client)
@@ -366,9 +361,7 @@ async def test_query_with_custom_config(
 
 
 @pytest.mark.asyncio
-async def test_query_no_results_returns_failure(
-    rag_engine, mock_vector_store
-):
+async def test_query_no_results_returns_failure(rag_engine, mock_vector_store):
     """Test that query() returns RAGFailure when no relevant context found."""
     # Arrange
     mock_vector_store.search.return_value = []
@@ -412,9 +405,7 @@ async def test_query_min_score_filters_all_returns_failure(
 
 
 @pytest.mark.asyncio
-async def test_generate_answer_truncates_large_context(
-    rag_engine, mock_llm_client
-):
+async def test_generate_answer_truncates_large_context(rag_engine, mock_llm_client):
     """Test that large context is truncated to fit token limit."""
     # Arrange
     # Create context that exceeds default 4000 tokens (~16000 chars)
@@ -458,6 +449,7 @@ async def test_truncation_prioritizes_high_score_context(rag_engine, mock_llm_cl
     answer = await rag_engine.generate_answer("test", context, config=config)
 
     # Assert
+    assert isinstance(answer, Answer)
     # The prompt should contain the high-score content (A's)
     call_args = mock_llm_client.complete.call_args
     prompt = call_args[0][0]

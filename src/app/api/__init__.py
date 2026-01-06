@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 
 from app.agents import ROMAOrchestrator
 from app.config import APISettings, get_settings
+from app.exceptions import AgentFailureError
 from app.schemas import (
     AgentFailure,
     ErrorCodes,
@@ -73,7 +74,15 @@ async def query_endpoint(payload: QueryRequest) -> TailorOutput | StreamingRespo
             media_type="text/event-stream",
         )
 
-    return await orchestrator.run_query(payload)
+    try:
+        result = await orchestrator.run_query(payload)
+    except AgentFailureError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=jsonable_encoder(exc.failure),
+        ) from exc
+
+    return result.final_response
 
 
 async def _authorize_ingest(authorization: str | None = Header(default=None)) -> None:

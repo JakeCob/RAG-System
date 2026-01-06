@@ -71,3 +71,7 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Frontend lib directory (needed for API client utilities)
+!frontend/src/lib/
+!frontend/src/lib/**

@@ -1,59 +1,69 @@
 /**
- * Shared TypeScript types for the RAG System frontend.
- * These should mirror the Pydantic schemas from the backend.
+ * Shared TypeScript types that mirror the backend Pydantic schemas.
+ * Reference: docs/02_AGENT_SPECS.md & src/app/schemas/*
  */
 
-/** Response from the /health endpoint */
-export interface HealthResponse {
-  status: "healthy" | "degraded" | "unhealthy";
-  version: string;
-  services: {
-    vectordb: boolean;
-    llm: boolean;
-  };
-}
+/** Backend persona literal */
+export type Persona = "Technical" | "Executive" | "General";
 
-/** Input for the /query endpoint */
-export interface QueryInput {
-  query: string;
-  persona?: "technical" | "executive" | "general";
-  maxResults?: number;
-}
-
-/** Citation attached to a response */
-export interface SourceCitation {
-  documentId: string;
-  chunkId: string;
-  text: string;
-  relevanceScore: number;
-  metadata: Record<string, unknown>;
-}
-
-/** Response from the /query endpoint */
-export interface QueryResponse {
-  answer: string;
-  citations: SourceCitation[];
-  processingTimeMs: number;
-}
-
-/** Input for the /ingest endpoint */
-export interface IngestInput {
-  file: File;
-  sourceType: "local" | "gdrive" | "web";
-  metadata?: Record<string, unknown>;
-}
-
-/** Response from the /ingest endpoint */
-export interface IngestResponse {
-  documentId: string;
-  chunksCreated: number;
-  status: "success" | "partial" | "failed";
-  errors?: string[];
-}
-
-/** Error response structure */
-export interface ApiError {
-  code: string;
+/** Standardized agent failure payload */
+export interface AgentFailure {
+  agent_id: string;
+  error_code: string;
   message: string;
-  details?: Record<string, unknown>;
+  recoverable: boolean;
+  details?: Record<string, unknown> | undefined;
+  timestamp: string;
+}
+
+/** Response from GET /health */
+export interface HealthStatus {
+  db: "connected" | "degraded" | "offline";
+  agents: "ready" | "initializing" | "degraded";
+}
+
+/** Request body for POST /query */
+export interface QueryRequest {
+  text: string;
+  persona?: Persona;
+  stream?: boolean;
+}
+
+/** Citation returned by the Tailor agent */
+export interface SourceCitation {
+  source_id: string;
+  chunk_id: string;
+  text_snippet: string;
+  url?: string | null;
+}
+
+/** Tailor agent response mirrored for the frontend */
+export interface TailorOutput {
+  content: string;
+  citations: SourceCitation[];
+  tone_used: string;
+  follow_up_suggestions: string[];
+  confidence_score: number;
+}
+
+/** Alias for clarity when working with /query responses */
+export type QueryResponse = TailorOutput;
+
+/** A single Server-Sent Event emitted by the /query stream */
+export type QueryStreamEvent =
+  | { event: "token"; data: { index: number; token: string } }
+  | { event: "complete"; data: TailorOutput }
+  | { event: "error"; data: AgentFailure };
+
+/** Response body from POST /ingest */
+export interface IngestResponse {
+  task_id: string;
+  filename: string;
+  status: "queued" | "processing" | "completed";
+}
+
+/** Minimal shape for ingestion requests */
+export interface IngestRequest {
+  file: File | null;
+  token: string;
 }

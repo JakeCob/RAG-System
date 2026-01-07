@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from app.schemas import ParsedChunk, ParserOutput
 from ingestion.base import BaseParser
 
-from app.memory import MemoryAgent
-from app.schemas import ParserOutput, ParsedChunk
-from app.schemas.base import SourceType
+
+if TYPE_CHECKING:
+    from app.memory import MemoryAgent
+    from app.schemas.base import SourceType
 
 
 class IngestionService:
@@ -48,19 +50,25 @@ class IngestionService:
         start = time.perf_counter()
         chunks = self._parser.parse(content, metadata)
         parser_output = _build_parser_output(chunks, metadata)
-        await self._memory.index_parser_output(
-            parser_output,
-            source_id=source_id or parser_output.document_id,
-            source_type=source_type,
-            source_url=source_url,
-            extra_metadata={"filename": filename},
+
+        # Store chunks in memory agent
+        await self._memory.add_documents(
+            chunks=parser_output.chunks,
+            source_metadata={
+                "source_id": source_id or parser_output.document_id,
+                "source_type": source_type,
+                "source_url": source_url,
+                "url": source_url,  # MemoryAgent expects "url" key
+                "filename": filename,
+                **(extra_metadata or {}),
+            },
         )
-        parser_output = parser_output.model_copy(
+
+        return parser_output.model_copy(
             update={
                 "processing_time_ms": round((time.perf_counter() - start) * 1000, 2)
             }
         )
-        return parser_output
 
 
 def _build_parser_output(

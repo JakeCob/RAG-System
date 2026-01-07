@@ -6,11 +6,12 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from app.schemas import ParsedChunk, ParserOutput
+from app.schemas import AgentFailure, ParsedChunk, ParserOutput
 from ingestion.base import BaseParser
 
 
 if TYPE_CHECKING:
+    from app.connectors.gdrive import GDriveConnector
     from app.memory import MemoryAgent
     from app.schemas.base import SourceType
 
@@ -23,9 +24,11 @@ class IngestionService:
         *,
         memory_agent: MemoryAgent,
         parser: BaseParser | None = None,
+        gdrive_connector: GDriveConnector | None = None,
     ) -> None:
         self._memory = memory_agent
         self._parser = parser or BaseParser()
+        self._gdrive = gdrive_connector
 
     async def ingest_document(
         self,
@@ -68,6 +71,56 @@ class IngestionService:
             update={
                 "processing_time_ms": round((time.perf_counter() - start) * 1000, 2)
             }
+        )
+
+    async def ingest_from_gdrive(
+        self,
+        file_id: str,
+        filename: str | None = None,
+        source_metadata: dict[str, Any] | None = None,
+    ) -> ParserOutput | AgentFailure:
+        """Ingest a document from Google Drive.
+
+        Args:
+            file_id: Google Drive file ID (from URL).
+            filename: Optional override for filename.
+            source_metadata: Additional metadata to attach.
+
+        Returns:
+            ParserOutput or AgentFailure.
+        """
+        if self._gdrive is None:
+            return AgentFailure(
+                agent_id="ingestion_service",
+                error_code="ERR_CONNECTOR_NOT_CONFIGURED",
+                message="GDrive connector not configured",
+                recoverable=False,
+                details={"file_id": file_id},
+            )
+
+        # Fetch file from Google Drive
+        result = await self._gdrive.fetch_file(file_id)
+
+        if isinstance(result, AgentFailure):
+            return result
+
+        # Get file metadata if available
+        file_content = result
+        if filename is None:
+            filename = f"gdrive_{file_id}"
+
+        # Build Google Drive URL
+        gdrive_url = f"https://drive.google.com/file/d/{file_id}/view"
+
+        # Ingest the fetched content
+        metadata = source_metadata or {}
+        return await self.ingest_document(
+            content=file_content,
+            filename=filename,
+            source_id=file_id,
+            source_type="gdrive",
+            source_url=gdrive_url,
+            extra_metadata=metadata,
         )
 
 

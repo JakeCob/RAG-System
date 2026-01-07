@@ -65,6 +65,11 @@ lancedb_data/
 *.pem
 *.key
 
+# Google Drive Credentials (P4-2)
+credentials/
+service-account.json
+*-credentials.json
+
 # OS
 .DS_Store
 Thumbs.db

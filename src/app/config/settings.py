@@ -66,6 +66,18 @@ class APISettings(BaseSettings):
         description="Maximum tokens to generate",
     )
 
+    # Google Drive Configuration
+    gdrive_credentials_path: str = Field(
+        default="",
+        alias="GDRIVE_CREDENTIALS_PATH",
+        description="Path to Google Drive service account JSON credentials",
+    )
+    gdrive_scopes: list[str] = Field(
+        default=["https://www.googleapis.com/auth/drive.readonly"],
+        alias="GDRIVE_SCOPES",
+        description="Google Drive API OAuth scopes",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

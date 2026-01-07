@@ -5,3 +5,7 @@ Contains:
 - Google Drive Connector
 - Web Scraper Connector
 """
+
+from app.connectors.gdrive import GDriveConnector
+
+__all__ = ["GDriveConnector"]

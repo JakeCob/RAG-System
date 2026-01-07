@@ -35,7 +35,7 @@ class QueryRequest(BaseModel):
 class StreamEvent(BaseModel):
     """A single Server-Sent Event envelope."""
 
-    event: Literal["token", "complete"]
+    event: Literal["token", "complete", "error"]
     data: dict[str, Any] | str
 
 

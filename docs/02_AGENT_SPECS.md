@@ -261,3 +261,6 @@ class AgentFailure(BaseModel):
 | `ERR_MEMORY_NO_RESULTS` | No embeddings found > threshold | Broaden search or ask clarifying question |
 | `ERR_TAILOR_HALLUCINATION` | Verification failed (no citations) | Retry with strict instruction or fallback to "I don't know" |
 | `ERR_TIMEOUT` | Agent took too long | Retry once, then fail |
+| `ERR_LLM_RATE_LIMIT` | LLM API rate limit exceeded (429) | Retry with exponential backoff (recoverable=True) |
+| `ERR_LLM_TIMEOUT` | LLM request timed out | Retry or fail gracefully (recoverable=True) |
+| `ERR_LLM_INVALID_KEY` | Invalid LLM API key (401/403) | Request new key (recoverable=False) |

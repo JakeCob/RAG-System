@@ -39,7 +39,7 @@ from app.schemas import (
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-memory_agent = MemoryAgent(bootstrap_documents=True)
+memory_agent = MemoryAgent(db_path=".lancedb")
 ingestion_service = IngestionService(memory_agent=memory_agent)
 orchestrator = ROMAOrchestrator(
     stream_chunk_pause_ms=settings.stream_chunk_pause_ms,

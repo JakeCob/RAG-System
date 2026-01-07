@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from app.agents.tailor import TailorAgent
 from app.exceptions import AgentFailureError
@@ -18,6 +19,7 @@ from app.schemas import (
     ErrorCodes,
     GuardrailsInput,
     GuardrailsOutput,
+    MemoryQuery,
     OrchestratorOutput,
     PlanStep,
     QueryRequest,
@@ -26,13 +28,23 @@ from app.schemas import (
     TailorInput,
     TailorOutput,
 )
-from app.schemas.base import PlanStatus
+from app.services.llm import LLMService
+
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Sequence
+
+    from app.schemas.base import PlanStatus
+
 
 MAX_ROMA_DEPTH = 5
+logger = logging.getLogger(__name__)
 
 
 class GuardrailsProtocol(Protocol):
-    async def enforce(self, payload: GuardrailsInput) -> GuardrailsOutput | AgentFailure:
+    async def enforce(
+        self, payload: GuardrailsInput
+    ) -> GuardrailsOutput | AgentFailure:
         ...
 
 
@@ -62,13 +74,20 @@ class ROMAOrchestrator:
         guardrails: GuardrailsProtocol | None = None,
         memory_agent: MemoryAgentProtocol | None = None,
         tailor_agent: TailorProtocol | None = None,
+        llm_service: LLMService | None = None,
         stream_chunk_pause_ms: int = 0,
         state_store: dict[str, ConversationState] | None = None,
         max_depth: int = MAX_ROMA_DEPTH,
     ) -> None:
+        from pathlib import Path
+
         self._guardrails = guardrails or GuardrailsAgent()
-        self._memory_agent = memory_agent or MemoryAgent(bootstrap_documents=True)
+        # MemoryAgent requires db_path parameter - use default if not provided
+        self._memory_agent = memory_agent or MemoryAgent(
+            db_path=str(Path.cwd() / "data" / "lancedb")
+        )
         self._tailor_agent = tailor_agent or TailorAgent()
+        self._llm_service = llm_service or LLMService()
         self._stream_chunk_pause = stream_chunk_pause_ms / 1000
         self._state_store = state_store or {}
         self._max_depth = max_depth
@@ -80,7 +99,7 @@ class ROMAOrchestrator:
         start = time.perf_counter()
         self._plan = []
         sanitized_query = await self._apply_input_guardrails(request.text)
-        topics = self._extract_topics(sanitized_query)
+        topics = await self._extract_topics(sanitized_query)
         attempt = 0
         last_error: AgentFailureError | None = None
 
@@ -109,7 +128,10 @@ class ROMAOrchestrator:
             if not last_error.failure.recoverable:
                 raise last_error
             self._add_plan_step(
-                description=f"Retry planning iteration {attempt + 1} due to {last_error.failure.error_code}",
+                description=(
+                    f"Retry planning iteration {attempt + 1} due to "
+                    f"{last_error.failure.error_code}"
+                ),
                 tool_call="orchestrator.retry",
                 status="pending",
             )
@@ -170,15 +192,28 @@ class ROMAOrchestrator:
         for topic in targets:
             step = self._add_plan_step(
                 description=f"Retrieve context for '{topic}' (attempt {attempt})",
-                tool_call="memory.retrieve",
+                tool_call="memory.query",
             )
             step.status = "in_progress"
             try:
-                retrieved = await self._memory_agent.retrieve(query_text=topic)
+                # MemoryAgent.query() takes a MemoryQuery object
+                memory_query = MemoryQuery(
+                    query_text=topic,
+                    top_k=5,
+                    min_relevance_score=0.7,
+                )
+                result = await self._memory_agent.query(memory_query)
+
+                # Handle AgentFailure response
+                if isinstance(result, AgentFailure):
+                    step.status = "failed"
+                    raise self._as_error(result)
+
+                # Extract contexts from MemoryOutput
+                contexts.extend(result.results)
             except AgentFailureError as exc:
                 step.status = "failed"
                 return [], exc
-            contexts.extend(retrieved)
             step.status = "completed"
 
         return contexts, None
@@ -210,7 +245,7 @@ class ROMAOrchestrator:
         payload = TailorInput(
             user_query=query,
             context_chunks=contexts,
-            persona=persona,
+            persona=persona,  # type: ignore[arg-type]
         )
         try:
             response = await self._tailor_agent.process(payload)
@@ -266,7 +301,18 @@ class ROMAOrchestrator:
                 details={"invalid_chunks": invalid},
             )
 
-    def _extract_topics(self, query: str) -> list[str]:
+    async def _extract_topics(self, query: str) -> list[str]:
+        """Extract search topics from query using LLM-based understanding.
+
+        First tries LLM-based extraction for better understanding,
+        falls back to regex-based extraction if LLM fails.
+        """
+        # Try LLM-based topic extraction first
+        llm_topics = await self._llm_extract_topics(query)
+        if llm_topics:
+            return llm_topics
+
+        # Fallback to regex-based extraction for comparison queries
         lowered = query.lower()
         if not any(keyword in lowered for keyword in ("compare", " vs ", " versus ")):
             return []
@@ -274,10 +320,62 @@ class ROMAOrchestrator:
         parts = re.split(r"\band\b|\bvs\b|\bversus\b", query, flags=re.IGNORECASE)
         topics: list[str] = []
         for part in parts:
-            cleaned = re.sub(r"^(compare|versus|vs)\s+", "", part.strip(), flags=re.IGNORECASE)
+            cleaned = re.sub(
+                r"^(compare|versus|vs)\s+", "", part.strip(), flags=re.IGNORECASE
+            )
             if cleaned:
                 topics.append(cleaned)
         return topics[:5]
+
+    async def _llm_extract_topics(self, query: str) -> list[str]:
+        """Use LLM to extract search topics from query."""
+        system_prompt = """You are a query analyzer for a RAG system.
+Extract key search topics from the user's query.
+Return a JSON array of 1-5 search topics (strings).
+
+Examples:
+Query: "What is the Q3 cloud budget?"
+Output: ["Q3 cloud budget", "quarterly cloud spending"]
+
+Query: "Compare AWS vs Azure pricing"
+Output: ["AWS pricing", "Azure pricing"]
+
+Query: "Tell me about the new feature"
+Output: ["new feature"]
+
+Return ONLY the JSON array, no explanation."""
+
+        user_prompt = f"Query: {query}\nOutput:"
+
+        result = await self._llm_service.generate(
+            prompt=user_prompt,
+            system=system_prompt,
+            temperature=0.3,
+            max_tokens=200,
+        )
+
+        if isinstance(result, AgentFailure):
+            logger.warning(
+                "LLM topic extraction failed, using fallback",
+                extra={
+                    "agent_id": "orchestrator",
+                    "error_code": result.error_code,
+                },
+            )
+            return []
+
+        # Parse JSON response
+        try:
+            topics = json.loads(result.strip())
+            if isinstance(topics, list) and all(isinstance(t, str) for t in topics):
+                return topics[:5]  # Limit to 5 topics
+        except json.JSONDecodeError:
+            logger.warning(
+                "Failed to parse LLM topic extraction response",
+                extra={"agent_id": "orchestrator", "response": result[:100]},
+            )
+
+        return []
 
     def _add_plan_step(
         self, *, description: str, tool_call: str, status: PlanStatus = "pending"

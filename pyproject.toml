@@ -208,10 +208,21 @@ markers = [
     "unit: Unit tests (fast, isolated)",
     "integration: Integration tests (may require external services)",
     "slow: Slow-running tests",
+    "real_embeddings: Run EmbeddingGenerator logic with a stubbed model",
 ]
 filterwarnings = [
     "error",
+    "ignore::FutureWarning",
+    "ignore::UserWarning:torch.*",
+    "ignore:.*CUDA.*:UserWarning",
+    "ignore:.*GPU.*:UserWarning",
+    "ignore:.*cuda.*:UserWarning",
+    "ignore:.*gpu.*:UserWarning",
+    "ignore:.*torch.classes.*:UserWarning",
+    "ignore:.*PyTorch version.*:UserWarning",
+    "ignore:.*not compiled with CUDA.*:UserWarning",
     "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
 
 # =============================================================================

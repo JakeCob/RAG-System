@@ -19,6 +19,7 @@ from app.schemas import (
     ErrorCodes,
     GuardrailsInput,
     GuardrailsOutput,
+    MemoryOutput,
     MemoryQuery,
     OrchestratorOutput,
     PlanStep,
@@ -49,14 +50,7 @@ class GuardrailsProtocol(Protocol):
 
 
 class MemoryAgentProtocol(Protocol):
-    async def retrieve(
-        self,
-        *,
-        query_text: str,
-        top_k: int = 5,
-        min_relevance_score: float = 0.7,
-        filters: dict[str, object] | None = None,
-    ) -> list[RetrievedContext]:
+    async def query(self, query: MemoryQuery) -> MemoryOutput | AgentFailure:
         ...
 
 
@@ -201,6 +195,7 @@ class ROMAOrchestrator:
                     query_text=topic,
                     top_k=5,
                     min_relevance_score=0.7,
+                    filters=None,
                 )
                 result = await self._memory_agent.query(memory_query)
 

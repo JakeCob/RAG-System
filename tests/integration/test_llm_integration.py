@@ -116,7 +116,8 @@ async def test_citation_format_integration() -> None:
 
     llm_service = LLMService()
 
-    system_prompt = """You are a helpful assistant. When answering, cite sources using [1], [2] format.
+    system_prompt = """You are a helpful assistant. When answering, cite sources using
+[1], [2] format.
 
 Example:
 Context:

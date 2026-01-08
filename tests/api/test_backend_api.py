@@ -6,12 +6,16 @@ Test Tool: TestClient (FastAPI)
 
 from __future__ import annotations
 
-from typing import AsyncIterator
+from typing import TYPE_CHECKING
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api import app
+from app.api import _get_ingestion_service, app
+
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 @pytest.fixture
@@ -20,10 +24,19 @@ async def async_client() -> AsyncIterator[AsyncClient]:
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        ingestion_service = _get_ingestion_service()
+        await ingestion_service.ingest_document(
+            content="Seed document for API query tests.",
+            filename="seed.txt",
+            source_id="seed_doc",
+            source_type="local",
+        )
         yield client
 
 
-def _build_multipart_body(filename: str, data: bytes, content_type: str) -> tuple[str, bytes]:
+def _build_multipart_body(
+    filename: str, data: bytes, content_type: str
+) -> tuple[str, bytes]:
     """Construct a minimal multipart/form-data payload for UploadFile."""
 
     boundary = "----pytestboundary"
@@ -36,6 +49,7 @@ def _build_multipart_body(filename: str, data: bytes, content_type: str) -> tupl
         f"--{boundary}--\r\n"
     ).encode()
     return boundary, body
+
 
 class TestBackendAPI:
     """Backend API contract tests."""

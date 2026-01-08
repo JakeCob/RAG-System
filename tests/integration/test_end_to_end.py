@@ -12,7 +12,7 @@ from app.agents import ROMAOrchestrator
 from app.exceptions import AgentFailureError
 from app.ingestion import IngestionService
 from app.memory import MemoryAgent
-from app.schemas import ErrorCodes, QueryRequest, TailorOutput
+from app.schemas import ErrorCodes, MemoryQuery, QueryRequest, TailorOutput
 
 
 class TestEndToEnd:
@@ -109,14 +109,7 @@ class TestEndToEnd:
                 self._delegate = base_memory
                 self._should_fail = True
 
-            async def retrieve(
-                self,
-                *,
-                query_text: str,
-                top_k: int = 5,
-                min_relevance_score: float = 0.7,
-                filters: dict[str, object] | None = None,
-            ):
+            async def query(self, query: MemoryQuery):
                 if self._should_fail:
                     self._should_fail = False
                     raise AgentFailureError(
@@ -125,12 +118,7 @@ class TestEndToEnd:
                         message="Temporary LanceDB outage",
                         recoverable=True,
                     )
-                return await self._delegate.retrieve(
-                    query_text=query_text,
-                    top_k=top_k,
-                    min_relevance_score=min_relevance_score,
-                    filters=filters,
-                )
+                return await self._delegate.query(query)
 
         orchestrator = ROMAOrchestrator(memory_agent=FlakyMemory())
         result = await orchestrator.run_query(

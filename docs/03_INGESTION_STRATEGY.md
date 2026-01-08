@@ -95,13 +95,112 @@ We employ a "Pipe & Filter" architecture.
 
 **Step 4: Structural Segmentation (The "Dolphin" Pass)**
 *   Parse the Markdown into logical blocks (`ParsedChunk` objects).
-*   Identify `layout_type`: "header", "text", "table", "code".
+*   Identify `layout_type`: "header", "text", "table", "image", "list".
 
 **Step 5: Metadata Tagging & Final Assembly**
 *   Construct the `ParserOutput`.
 *   Enrich `metadata`: Add `ingest_timestamp`, `source_hash` (for deduplication), `author`, `permissions`.
 
 ---
+
+## 4.3 Dolphin Parser - Multi-Format Support
+
+### Supported Formats
+
+| Format | Extensions | Features |
+|--------|-----------|----------|
+| Text | .txt, .md | Basic chunking, table detection |
+| PDF | .pdf | Layout detection, tables, images, OCR |
+| Word | .docx | Headers, lists, tables, images |
+| PowerPoint | .pptx | Slides, speaker notes |
+| Excel | .xlsx, .xls, .csv | Sheet-to-table conversion |
+
+### Table Preservation
+
+All formats convert tables to markdown format:
+
+```markdown
+| Header 1 | Header 2 |
+|----------|----------|
+| Cell 1   | Cell 2   |
+```
+
+This ensures LLMs can understand table structure in retrieved context.
+
+### Layout Types
+
+ParsedChunk.layout_type can be:
+text - Regular paragraph text
+table - Tabular data (markdown format)
+header - Document headers (H1-H6)
+image - Image with caption/alt text
+list - Bullet points or numbered lists
+
+### Error Handling
+
+Unsupported formats return:
+
+AgentFailure(
+    error_code=ErrorCodes.PARSER_UNSUPPORTED_FORMAT,
+    message="Unsupported file format: .xyz"
+)
+
+Corrupted files return:
+
+AgentFailure(
+    error_code=ErrorCodes.PARSER_CORRUPTED_FILE,
+    message="Failed to parse PDF: ..."
+)
+
+## 4.4 Known Limitations (Phase 4 MVP)
+
+### Image Handling
+
+Current Capabilities:
+- Image elements detected in PDF/DOCX when supported by parser backends
+- Basic caption/alt-text preservation when present in source
+- Image chunks labeled with layout_type="image"
+
+Current Limitations:
+- No OCR on embedded images
+- No visual understanding (VLM/vision models)
+- Charts/diagrams are not extracted into data
+- Screenshot text not recognized
+- Images without captions may have minimal context
+
+Impact on RAG Quality:
+- Images with captions: good (caption text is searchable)
+- Images without captions: poor (generic placeholder content)
+- Visual charts/diagrams: missing (data not extracted)
+- Screenshots with text: missing (text not OCR'd)
+
+Workarounds:
+1. Add captions to images in source documents before upload
+2. Use alt-text in accessibility features (Word, PowerPoint)
+3. Manually transcribe critical visual content into text
+4. For image-heavy docs, consider OCR preprocessing
+
+Examples:
+
+```python
+ParsedChunk(
+    content="Figure 1: Quarterly revenue growth chart",
+    layout_type="image",
+    page_number=5
+)
+
+ParsedChunk(
+    content="[Image]",
+    layout_type="image",
+    page_number=5
+)
+```
+
+Future Enhancements (Phase 5):
+- VLM integration for image understanding
+- Automatic caption generation
+- Chart/diagram extraction
+- OCR for embedded images
 
 ## 5. Chunking Strategy
 

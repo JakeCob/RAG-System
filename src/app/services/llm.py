@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
 
 import httpx
 from anthropic import AsyncAnthropic
@@ -77,7 +77,16 @@ class LLMService:
                 max_retries=0,  # We handle retries ourselves
             )
 
-        return self._client
+        assert self._client is not None
+        return cast(AsyncOpenAI | AsyncAnthropic, self._client)
+
+    def _get_openai_client(self) -> AsyncOpenAI:
+        """Return the OpenAI client with an explicit type cast."""
+        return cast(AsyncOpenAI, self._get_client())
+
+    def _get_anthropic_client(self) -> AsyncAnthropic:
+        """Return the Anthropic client with an explicit type cast."""
+        return cast(AsyncAnthropic, self._get_client())
 
     async def generate(
         self,
@@ -205,7 +214,7 @@ class LLMService:
         max_tokens: int,
     ) -> str:
         """Generate text using OpenAI API."""
-        client = self._get_client()
+        client = self._get_openai_client()
 
         messages: list[dict[str, str]] = []
         if system:
@@ -254,7 +263,7 @@ class LLMService:
         max_tokens: int,
     ) -> str:
         """Generate text using Anthropic API."""
-        client = self._get_client()
+        client = self._get_anthropic_client()
 
         logger.info(
             "Anthropic API call",
@@ -304,7 +313,7 @@ class LLMService:
         max_tokens: int,
     ) -> AsyncGenerator[str, None]:
         """Stream text chunks from OpenAI API."""
-        client = self._get_client()
+        client = self._get_openai_client()
 
         messages: list[dict[str, str]] = []
         if system:
@@ -332,7 +341,7 @@ class LLMService:
         max_tokens: int,
     ) -> AsyncGenerator[str, None]:
         """Stream text chunks from Anthropic API."""
-        client = self._get_client()
+        client = self._get_anthropic_client()
 
         kwargs: dict[str, Any] = {
             "model": self._model,

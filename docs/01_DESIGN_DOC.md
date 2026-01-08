@@ -13,7 +13,7 @@ This Agentic RAG system acts as an intelligent force multiplier by combining **D
 ### 1. Data Flow Pipeline (Ingestion & Indexing)
 1.  **Ingestion Layer**: Connectors for GDrive (Oauth2), Web Scraper (URLs), and Local File Watchers.
 2.  **Parsing Layer (Dolphin)**:
-    *   Raw files (PDF, PPTX, HTML) are sent to the `DolphinParserService`.
+    *   Raw files (PDF, DOCX, PPTX, XLSX, TXT/MD) are sent to the `DolphinParserService`.
     *   Dolphin performs OCR and layout analysis to distinguish headers, body text, and tabular data.
     *   Output is normalized into semantic Markdown blocks.
 3.  **Embedding & Storage**:

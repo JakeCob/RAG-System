@@ -10,10 +10,16 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Pattern, Sequence
+from typing import TYPE_CHECKING
 
 from app.schemas import AgentFailure, ErrorCodes, GuardrailsInput, GuardrailsOutput
-from app.schemas.base import CheckType, RiskCategory
+
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from re import Pattern
+
+    from app.schemas.base import CheckType, RiskCategory
 
 
 _PII_PLACEHOLDER = "[REDACTED:PII]"
@@ -166,6 +172,7 @@ class GuardrailsAgent:
         sanitized = text
 
         for pattern in self._pii_patterns:
+
             def _replacer(match: re.Match[str]) -> str:
                 matches.append(match.group(0))
                 return _PII_PLACEHOLDER
@@ -174,9 +181,7 @@ class GuardrailsAgent:
 
         return sanitized, matches
 
-    def _match_any(
-        self, content: str, patterns: Sequence[Pattern[str]]
-    ) -> str | None:
+    def _match_any(self, content: str, patterns: Sequence[Pattern[str]]) -> str | None:
         """Return the first regex match for the provided patterns."""
 
         for pattern in patterns:

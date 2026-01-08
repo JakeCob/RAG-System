@@ -6,24 +6,29 @@ Test Class: TestROMAOrchestrator
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import AsyncIterator, Callable
-from typing import Any
+from typing import TYPE_CHECKING
 
 import pytest
 
 from app.agents.orchestrator import MAX_ROMA_DEPTH, ROMAOrchestrator
 from app.exceptions import AgentFailureError
 from app.schemas import (
+    AgentFailure,
     ErrorCodes,
     GuardrailsInput,
     GuardrailsOutput,
+    MemoryOutput,
+    MemoryQuery,
     QueryRequest,
     RetrievedContext,
     SourceCitation,
     TailorInput,
     TailorOutput,
 )
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class _DeterministicTailor:
@@ -46,7 +51,10 @@ class _DeterministicTailor:
             )
 
         return TailorOutput(
-            content=f"Mock answer grounded in retrieved context for {payload.user_query}.",
+            content=(
+                "Mock answer grounded in retrieved context for "
+                f"{payload.user_query}."
+            ),
             citations=[
                 SourceCitation(
                     source_id="doc-alpha",
@@ -68,28 +76,49 @@ class _DeterministicMemory:
         self.no_results = no_results
         self.calls = 0
 
-    async def retrieve(self, query_text: str) -> list[RetrievedContext]:
-        """Return deterministic RetrievedContext objects."""
+    async def query(self, query: MemoryQuery) -> MemoryOutput | AgentFailure:
+        """Return deterministic MemoryOutput objects."""
 
         self.calls += 1
         if self.no_results:
-            raise AgentFailureError(
+            return AgentFailure(
                 agent_id="memory",
                 error_code=ErrorCodes.MEMORY_NO_RESULTS,
                 message="No relevant chunks",
                 recoverable=True,
             )
 
-        return [
-            RetrievedContext(
-                chunk_id="chunk-1",
-                content=f"Chunk about {query_text}",
-                source_id="doc-alpha",
-                source_url=None,
-                relevance_score=0.92,
-                metadata={"source_type": "local"},
-            )
-        ]
+        return MemoryOutput(
+            results=[
+                RetrievedContext(
+                    chunk_id="chunk-1",
+                    content=f"Chunk about {query.query_text}",
+                    source_id="doc-alpha",
+                    source_url=None,
+                    relevance_score=0.92,
+                    metadata={"source_type": "local"},
+                )
+            ],
+            total_found=1,
+        )
+
+
+class _StubLLMService:
+    """Stub LLM service to avoid API key requirements in unit tests."""
+
+    async def generate(
+        self,
+        *,
+        prompt: str,
+        system: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
+        _ = prompt
+        _ = system
+        _ = temperature
+        _ = max_tokens
+        return "[]"
 
 
 @pytest.fixture()
@@ -106,7 +135,9 @@ def orchestrator_factory() -> Callable[..., ROMAOrchestrator]:
         tailor_agent = tailor or _DeterministicTailor()
 
         class _Guardrails:
-            async def enforce(self, payload: GuardrailsInput) -> GuardrailsOutput | AgentFailureError:
+            async def enforce(
+                self, payload: GuardrailsInput
+            ) -> GuardrailsOutput | AgentFailureError:
                 if guardrails_safe:
                     return GuardrailsOutput(
                         is_safe=True,
@@ -125,6 +156,7 @@ def orchestrator_factory() -> Callable[..., ROMAOrchestrator]:
             guardrails=_Guardrails(),
             memory_agent=memory_agent,
             tailor_agent=tailor_agent,
+            llm_service=_StubLLMService(),
         )
 
     return _factory
@@ -135,7 +167,9 @@ class TestROMAOrchestrator:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_plan_generation(self, orchestrator_factory: Callable[..., ROMAOrchestrator]) -> None:
+    async def test_plan_generation(
+        self, orchestrator_factory: Callable[..., ROMAOrchestrator]
+    ) -> None:
         """Ensure the planner yields a multi-step plan."""
 
         orchestrator = orchestrator_factory()
@@ -148,7 +182,9 @@ class TestROMAOrchestrator:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_error_handling_retry(self, orchestrator_factory: Callable[..., ROMAOrchestrator]) -> None:
+    async def test_error_handling_retry(
+        self, orchestrator_factory: Callable[..., ROMAOrchestrator]
+    ) -> None:
         """Verifier rejection should trigger a retry before succeeding."""
 
         tailor = _DeterministicTailor(fail_once=True)
@@ -156,16 +192,22 @@ class TestROMAOrchestrator:
         result = await orchestrator.run_query(QueryRequest(text="Explain Alpha"))
 
         # Fail once + retry => at least two plan steps referencing retry behavior
-        retry_steps = [step for step in result.execution_plan if "Retry" in step.description]
+        retry_steps = [
+            step for step in result.execution_plan if "Retry" in step.description
+        ]
         assert retry_steps, "Expected a retry step after verifier failure."
         assert result.final_response.confidence_score == pytest.approx(0.9, rel=1e-3)
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_max_recursion_depth(self, orchestrator_factory: Callable[..., ROMAOrchestrator]) -> None:
+    async def test_max_recursion_depth(
+        self, orchestrator_factory: Callable[..., ROMAOrchestrator]
+    ) -> None:
         """Ensure recursion depth stops further planning."""
 
-        orchestrator = orchestrator_factory(memory=_DeterministicMemory(no_results=True))
+        orchestrator = orchestrator_factory(
+            memory=_DeterministicMemory(no_results=True)
+        )
 
         with pytest.raises(AgentFailureError) as exc:
             await orchestrator.run_query(QueryRequest(text="loop forever"))
@@ -176,7 +218,9 @@ class TestROMAOrchestrator:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_verifier_node_rejection(self, orchestrator_factory: Callable[..., ROMAOrchestrator]) -> None:
+    async def test_verifier_node_rejection(
+        self, orchestrator_factory: Callable[..., ROMAOrchestrator]
+    ) -> None:
         """Verifier rejecting the Tailor response should trigger new retrieval."""
 
         memory = _DeterministicMemory()
@@ -186,8 +230,13 @@ class TestROMAOrchestrator:
         result = await orchestrator.run_query(QueryRequest(text="Needs verification"))
 
         assert memory.calls >= 1, "Memory should be consulted at least once"
-        # After verifier failure we expect at least one retrieval step prior to completion
-        statuses = [step.status for step in result.execution_plan if "Verifier" in step.description]
+        # After verifier failure we expect at least one retrieval step
+        # before completion.
+        statuses = [
+            step.status
+            for step in result.execution_plan
+            if "Verifier" in step.description
+        ]
         assert statuses.count("failed") == 1
 
         # Ensure the final response is grounded after the verifier retry

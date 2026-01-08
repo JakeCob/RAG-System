@@ -31,8 +31,10 @@ class AgentFailureError(RuntimeError):
     def __str__(self) -> str:
         """Return a human-readable form for logging."""
 
-        return f"{self.failure.agent_id}::{self.failure.error_code} - {self.failure.message}"
+        return (
+            f"{self.failure.agent_id}::{self.failure.error_code} - "
+            f"{self.failure.message}"
+        )
 
 
 __all__ = ["AgentFailureError"]
-

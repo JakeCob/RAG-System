@@ -228,7 +228,7 @@ export default function Home(): JSX.Element {
               <input
                 key={fileInputKey}
                 type="file"
-                accept=".pdf,.docx,.pptx,.txt,.md,.html"
+                accept=".pdf,.docx,.pptx,.txt,.md,.xlsx,.xls,.csv"
                 className="mt-2 w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-indigo-600"
                 onChange={(event) => {
                   const files = event.target.files;

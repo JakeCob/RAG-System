@@ -12,11 +12,11 @@ Reference: docs/04_TEST_PLAN.md Section 3.7
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
-from anthropic.types import ContentBlock, Message, TextBlock, Usage
+from anthropic.types import Message, TextBlock, Usage
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
@@ -361,7 +361,7 @@ class TestLLMService:
                     assert isinstance(result, AgentFailure)
                     assert result.error_code == ErrorCodes.TIMEOUT
                     assert result.recoverable is True
-                    # Verify all retries were exhausted (initial + 2 retries = 2 total calls)
+                    # Verify all retries were exhausted (initial + 2 retries).
                     assert mock_client.chat.completions.create.call_count == 2
 
     @pytest.mark.asyncio

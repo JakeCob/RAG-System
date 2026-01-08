@@ -35,7 +35,7 @@ Phase 3 delivered a working ROMA console with backend integration, strict typing
 - [ ] Real LLM integration (OpenAI/Anthropic) operational
 - [ ] GDrive OAuth ingestion functional
 - [ ] Web scraping with Crawl4AI operational
-- [ ] Multi-format parsing (PDF/DOCX/PPTX/TXT/MD/HTML)
+- [ ] Multi-format parsing (PDF/DOCX/PPTX/TXT/MD/XLSX/CSV)
 - [ ] Streaming query responses with progressive rendering
 - [ ] Golden dataset validation passing (≥85% accuracy)
 - [ ] Citation rendering with source links functional
@@ -124,11 +124,11 @@ Phase 3 delivered a working ROMA console with backend integration, strict typing
 - Implement `WebConnector` (`src/app/connectors/web.py`)
   - Integration with Crawl4AI or equivalent (e.g., `beautifulsoup4` + `trafilatura`)
   - Boilerplate removal (nav/footer/ads)
-  - HTML → Markdown conversion
+  - XLSX/CSV → Markdown table conversion
   - User-Agent rotation (handle 403/429)
   - Content sanitization (strip `<script>`, detect malicious payloads)
 - Add web scraping config (`settings.py`: timeouts, max depth, allowed domains)
-- Write unit tests with mock HTML responses
+- Write unit tests with spreadsheet/table fixtures
 - Write integration test with real web pages (use archive.org for stability)
 - Update `IngestionService` to route web URLs to `WebConnector`
 

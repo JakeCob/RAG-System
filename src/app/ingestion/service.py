@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from app.exceptions import AgentFailureError
 from app.schemas import AgentFailure, ParsedChunk, ParserOutput
 from ingestion.base import BaseParser
 
@@ -52,6 +53,14 @@ class IngestionService:
 
         start = time.perf_counter()
         chunks = self._parser.parse(content, metadata)
+        if isinstance(chunks, AgentFailure):
+            raise AgentFailureError(
+                agent_id=chunks.agent_id,
+                error_code=chunks.error_code,
+                message=chunks.message,
+                recoverable=chunks.recoverable,
+                details=chunks.details,
+            )
         parser_output = _build_parser_output(chunks, metadata)
 
         # Store chunks in memory agent
@@ -114,14 +123,17 @@ class IngestionService:
 
         # Ingest the fetched content
         metadata = source_metadata or {}
-        return await self.ingest_document(
-            content=file_content,
-            filename=filename,
-            source_id=file_id,
-            source_type="gdrive",
-            source_url=gdrive_url,
-            extra_metadata=metadata,
-        )
+        try:
+            return await self.ingest_document(
+                content=file_content,
+                filename=filename,
+                source_id=file_id,
+                source_type="gdrive",
+                source_url=gdrive_url,
+                extra_metadata=metadata,
+            )
+        except AgentFailureError as exc:
+            return exc.failure
 
 
 def _build_parser_output(
@@ -129,11 +141,13 @@ def _build_parser_output(
     metadata: dict[str, Any],
 ) -> ParserOutput:
     document_id = metadata.get("document_id") or str(uuid.uuid4())
+    page_numbers = [chunk.page_number for chunk in chunks if chunk.page_number]
+    total_pages = max(page_numbers) if page_numbers else max(1, len(chunks))
     return ParserOutput(
         document_id=document_id,
         metadata=dict(metadata),
         chunks=chunks,
-        total_pages=max(1, len(chunks)),
+        total_pages=total_pages,
         processing_time_ms=0.0,
     )
 

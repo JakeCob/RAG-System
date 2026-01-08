@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from collections.abc import AsyncGenerator
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import (
     Depends,
@@ -21,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from app.agents import ROMAOrchestrator
-from app.config import APISettings, get_settings
+from app.config import get_settings
 from app.exceptions import AgentFailureError
 from app.ingestion import IngestionService
 from app.memory import MemoryAgent
@@ -36,15 +37,37 @@ from app.schemas import (
 )
 
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-memory_agent = MemoryAgent(db_path=".lancedb")
-ingestion_service = IngestionService(memory_agent=memory_agent)
-orchestrator = ROMAOrchestrator(
-    stream_chunk_pause_ms=settings.stream_chunk_pause_ms,
-    memory_agent=memory_agent,
-)
+
+_UPLOAD_FILE_PARAM = File(...)
+
+
+@lru_cache
+def _get_memory_agent() -> MemoryAgent:
+    """Lazily initialize the vector store to avoid heavy imports at startup."""
+    return MemoryAgent(db_path=".lancedb")
+
+
+@lru_cache
+def _get_ingestion_service() -> IngestionService:
+    """Provide a cached ingestion service backed by the memory agent."""
+    return IngestionService(memory_agent=_get_memory_agent())
+
+
+@lru_cache
+def _get_orchestrator() -> ROMAOrchestrator:
+    """Provide a cached orchestrator wired to the shared memory agent."""
+    return ROMAOrchestrator(
+        stream_chunk_pause_ms=settings.stream_chunk_pause_ms,
+        memory_agent=_get_memory_agent(),
+    )
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -70,6 +93,7 @@ async def health() -> HealthStatus:
 @app.post("/query", response_model=TailorOutput)
 async def query_endpoint(payload: QueryRequest) -> TailorOutput | StreamingResponse:
     """Synchronous or streaming query execution."""
+    orchestrator = _get_orchestrator()
 
     if payload.stream:
         stream = orchestrator.stream_query(payload)
@@ -121,11 +145,11 @@ def _unauthorized(message: str) -> HTTPException:
     )
 
 
-def _agent_failure(*, agent_id: str, error_code: str, message: str) -> dict:
+def _agent_failure(*, agent_id: str, error_code: str, message: str) -> dict[str, Any]:
     """Helper to serialize AgentFailure payloads."""
 
     failure = AgentFailure(agent_id=agent_id, error_code=error_code, message=message)
-    return jsonable_encoder(failure)
+    return cast(dict[str, Any], jsonable_encoder(failure))
 
 
 async def _stream_sse(
@@ -135,7 +159,9 @@ async def _stream_sse(
 
     async for event in events:
         data = event.data
-        serialized = data if isinstance(data, str) else json.dumps(data)
+        serialized = (
+            data if isinstance(data, str) else json.dumps(jsonable_encoder(data))
+        )
         yield f"event: {event.event}\ndata: {serialized}\n\n"
 
 
@@ -145,12 +171,17 @@ async def _noop_ingest_job(filename: str, size_bytes: int) -> None:
     logger.debug("Ingested %s (%d bytes)", filename, size_bytes)
 
 
-@app.post("/ingest", status_code=status.HTTP_202_ACCEPTED, response_model=IngestResponse)
+@app.post(
+    "/ingest",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=IngestResponse,
+)
 async def ingest_document(
-    file: UploadFile = File(...),
+    file: UploadFile = _UPLOAD_FILE_PARAM,
     _: None = Depends(_authorize_ingest),
 ) -> IngestResponse:
     """Accept a file for asynchronous ingestion."""
+    ingestion_service = _get_ingestion_service()
 
     payload = await file.read()
     if not payload:
@@ -164,13 +195,16 @@ async def ingest_document(
         )
 
     task_id = str(uuid.uuid4())
+    filename = file.filename or "upload.bin"
     try:
         await ingestion_service.ingest_document(
             content=payload,
-            filename=file.filename,
+            filename=filename,
             source_id=f"upload::{task_id}",
             source_type="local",
-            extra_metadata={"content_type": file.content_type or "application/octet-stream"},
+            extra_metadata={
+                "content_type": file.content_type or "application/octet-stream"
+            },
         )
     except ValueError as exc:
         raise HTTPException(
@@ -187,5 +221,5 @@ async def ingest_document(
             detail=jsonable_encoder(exc.failure),
         ) from exc
 
-    logger.info("Ingested %s via task %s", file.filename, task_id)
-    return IngestResponse(task_id=task_id, filename=file.filename, status="queued")
+    logger.info("Ingested %s via task %s", filename, task_id)
+    return IngestResponse(task_id=task_id, filename=filename, status="queued")

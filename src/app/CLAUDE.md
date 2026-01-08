@@ -28,9 +28,9 @@ from app.schemas import (
 - Use exponential backoff for 429/403 errors
 
 ### `parser/`
-- Convert PDF/DOCX/PPTX/HTML to structured chunks
+- Convert PDF/DOCX/PPTX/TXT/MD/XLSX/CSV to structured chunks
 - Preserve table structure as Markdown tables (CRITICAL)
-- Detect layout types: "text", "table", "image", "header"
+- Detect layout types: "text", "table", "image", "header", "list"
 - Return `ParserOutput` with `ParsedChunk` list
 
 ### `memory/`
@@ -93,8 +93,8 @@ class Settings(BaseSettings):
 ```python
 SourceType = Literal["gdrive", "web", "local"]
 IngestionSource = Literal["gdrive", "local", "web_scrape"]
-FileType = Literal["pdf", "html", "docx", "pptx", "txt", "md"]
-LayoutType = Literal["text", "table", "image", "header"]
+FileType = Literal["pdf", "docx", "pptx", "txt", "md", "xlsx", "xls", "csv"]
+LayoutType = Literal["text", "table", "image", "header", "list"]
 Persona = Literal["Technical", "Executive", "General"]
 ```
 

@@ -85,7 +85,9 @@ class TestGDriveIntegration:
         result = await connector.fetch_file("INVALID_FILE_ID_123456789")
 
         assert isinstance(result, AgentFailure)
-        assert "not found" in result.message.lower() or "invalid" in result.message.lower()
+        assert (
+            "not found" in result.message.lower() or "invalid" in result.message.lower()
+        )
         print(f"✓ Correctly handled nonexistent file: {result.error_code}")
 
     async def test_list_files_in_folder(

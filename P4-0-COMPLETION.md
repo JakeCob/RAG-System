@@ -110,7 +110,7 @@ P4-1 (LLM) → P4-5 (Streaming) → P4-6 (Golden Dataset) → P4-10 (Coverage & 
 - [ ] Real LLM operational
 - [ ] GDrive ingestion functional
 - [ ] Web scraping operational
-- [ ] Multi-format parsing (PDF/DOCX/PPTX/TXT/MD/HTML)
+- [ ] Multi-format parsing (PDF/DOCX/PPTX/TXT/MD/XLSX/CSV)
 - [ ] Streaming queries functional
 - [ ] Golden dataset ≥85% accuracy
 - [ ] Citation rendering with source links

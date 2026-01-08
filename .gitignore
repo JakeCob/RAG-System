@@ -77,6 +77,10 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
+# Local data dumps (large fixtures, caches)
+data/
+
 # Frontend lib directory (needed for API client utilities)
 !frontend/src/lib/
 !frontend/src/lib/**
+tests/fixtures/documents/scanned.pdf

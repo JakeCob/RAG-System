@@ -1,6 +1,6 @@
 """Dolphin Parser Agent - "The Eyes".
 
-Ingests raw documents (PDF, HTML, DOCX, PPTX) and converts them
+Ingests raw documents (PDF, DOCX, PPTX, TXT/MD, XLSX/CSV) and converts them
 into semantically rich, structured data. Handles OCR, layout
 detection (tables vs. text), and chunking.
 

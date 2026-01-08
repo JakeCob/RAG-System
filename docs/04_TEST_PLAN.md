@@ -54,7 +54,7 @@ We use `pytest` fixtures to simulate external systems. **No network calls** are 
     1.  `test_parse_malformed_pdf`: Input a corrupted PDF byte stream. Expect `AgentFailure` (recoverable=False).
     2.  `test_parse_empty_string`: Input empty text file. Expect explicit warning or empty chunk list, not a crash.
     3.  `test_parse_table_structure`: Input Markdown with a table. Assert output `ParsedChunk` preserves pipe `|` separators and is `layout_type="table"`.
-    4.  `test_sanitize_html`: Input HTML with `<script>` tags. Assert output text is stripped of scripts.
+    4.  `test_reject_html_files`: Input `.html` file bytes. Assert parser returns `AgentFailure` instructing Web Connector usage.
     5.  `test_parse_docx_structure`: Input a mock DOCX byte stream. Assert headers and paragraphs are preserved.
     6.  `test_parse_pptx_slides`: Input a mock PPTX. Assert slide titles become headers and speaker notes are extracted.
     7.  `test_parse_excel_csv`: Input a CSV/XLSX. Assert rows are converted to Markdown table format.

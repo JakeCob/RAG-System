@@ -22,8 +22,7 @@ class TestGDriveConnector:
     @pytest.fixture
     def mock_service(self) -> MagicMock:
         """Mock Google Drive API service."""
-        service = MagicMock()
-        return service
+        return MagicMock()
 
     @pytest.mark.unit
     @patch("app.connectors.gdrive.service_account.Credentials")
@@ -31,7 +30,7 @@ class TestGDriveConnector:
     async def test_fetch_file_success(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test successful file download."""
         # Setup mocks
@@ -67,7 +66,7 @@ class TestGDriveConnector:
     async def test_fetch_file_not_found(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test 404 error handling."""
         # Setup mocks
@@ -94,7 +93,7 @@ class TestGDriveConnector:
     async def test_fetch_file_permission_denied(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test 403 permission denied error."""
         # Setup mocks
@@ -123,7 +122,7 @@ class TestGDriveConnector:
         self,
         mock_sleep: AsyncMock,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test exponential backoff on 429 errors."""
         # Setup mocks
@@ -175,7 +174,7 @@ class TestGDriveConnector:
         self,
         mock_sleep: AsyncMock,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test max retries on persistent rate limit."""
         # Setup mocks
@@ -204,7 +203,7 @@ class TestGDriveConnector:
     async def test_export_google_doc_to_markdown(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test native Google Docs export to Markdown."""
         # Setup mocks
@@ -242,7 +241,7 @@ class TestGDriveConnector:
     async def test_list_files_success(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test listing files in a folder."""
         # Setup mocks
@@ -261,7 +260,9 @@ class TestGDriveConnector:
                 {
                     "id": "file_2",
                     "name": "test2.docx",
-                    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "mimeType": (
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    ),
                     "size": "2048",
                 },
             ],
@@ -282,7 +283,7 @@ class TestGDriveConnector:
     async def test_list_files_with_pagination(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test listing files with pagination."""
         # Setup mocks
@@ -300,11 +301,10 @@ class TestGDriveConnector:
                     "files": [{"id": "file_1", "name": "test1.pdf"}],
                     "nextPageToken": "token_page2",
                 }
-            else:
-                return {
-                    "files": [{"id": "file_2", "name": "test2.pdf"}],
-                    "nextPageToken": None,
-                }
+            return {
+                "files": [{"id": "file_2", "name": "test2.pdf"}],
+                "nextPageToken": None,
+            }
 
         mock_service.files().list().execute.side_effect = list_side_effect
 
@@ -321,7 +321,7 @@ class TestGDriveConnector:
     async def test_list_files_folder_not_found(
         self,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test listing files in non-existent folder."""
         # Setup mocks
@@ -349,7 +349,7 @@ class TestGDriveConnector:
         self,
         mock_sleep: AsyncMock,
         mock_build: MagicMock,
-        mock_creds: MagicMock,
+        _mock_creds: MagicMock,
     ) -> None:
         """Test retry on 503 network errors."""
         # Setup mocks

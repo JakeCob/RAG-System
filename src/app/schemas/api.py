@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.base import Persona
+from app.schemas.base import Persona  # noqa: TCH001
 
 
 class HealthStatus(BaseModel):

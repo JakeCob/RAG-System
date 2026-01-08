@@ -47,7 +47,7 @@ class WebConnector:
     ]
 
     def __init__(
-        self,
+        self: WebConnector,
         *,
         timeout: int = 30,
         max_retries: int = 5,
@@ -72,13 +72,13 @@ class WebConnector:
         self.trafilatura_config = use_config()
         self.trafilatura_config.set("DEFAULT", "EXTENSIVE_CLEANING", "true")
 
-    def _get_user_agent(self) -> str:
+    def _get_user_agent(self: WebConnector) -> str:
         """Get next User-Agent in rotation."""
         agent = self.user_agents[self._current_agent_idx]
         self._current_agent_idx = (self._current_agent_idx + 1) % len(self.user_agents)
         return agent
 
-    def _is_allowed_domain(self, url: str) -> bool:
+    def _is_allowed_domain(self: WebConnector, url: str) -> bool:
         """Check if URL domain is in whitelist."""
         if self.allowed_domains is None:
             return True
@@ -92,7 +92,7 @@ class WebConnector:
         )
 
     async def fetch(
-        self,
+        self: WebConnector,
         url: str,
         *,
         extract_metadata: bool = True,
@@ -176,7 +176,7 @@ class WebConnector:
                 recoverable=False,
             )
 
-    async def _fetch_with_retry(self, url: str) -> str | AgentFailure:
+    async def _fetch_with_retry(self: WebConnector, url: str) -> str | AgentFailure:
         """Fetch URL with exponential backoff on transient errors.
 
         Retry on:

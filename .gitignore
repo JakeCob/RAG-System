@@ -58,12 +58,18 @@ dmypy.json
 *.sqlite
 chroma_data/
 lancedb_data/
+.lancedb/
 
 # Secrets
 .env
 .env.local
 *.pem
 *.key
+
+# Google Drive Credentials (P4-2)
+credentials/
+service-account.json
+*-credentials.json
 
 # OS
 .DS_Store
@@ -72,6 +78,10 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
+# Local data dumps (large fixtures, caches)
+data/
+
 # Frontend lib directory (needed for API client utilities)
 !frontend/src/lib/
 !frontend/src/lib/**
+tests/fixtures/documents/scanned.pdf

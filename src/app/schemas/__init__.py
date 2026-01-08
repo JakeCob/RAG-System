@@ -10,7 +10,13 @@ Contains all shared types defined in docs/02_AGENT_SPECS.md:
 - OrchestratorInput/Output, ConversationState
 """
 
-from app.schemas.api import HealthStatus, IngestResponse, QueryRequest, StreamEvent
+from app.schemas.api import (
+    HealthStatus,
+    IngestResponse,
+    MemoryStatus,
+    QueryRequest,
+    StreamEvent,
+)
 from app.schemas.base import AgentFailure, AgentMetadata, ErrorCodes
 from app.schemas.connector import ConnectorInput, ConnectorOutput
 from app.schemas.guardrails import GuardrailsInput, GuardrailsOutput
@@ -36,6 +42,7 @@ __all__ = [
     "QueryRequest",
     "StreamEvent",
     "IngestResponse",
+    "MemoryStatus",
     # Guardrails
     "GuardrailsInput",
     "GuardrailsOutput",

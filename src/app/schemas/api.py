@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.base import Persona
+from app.schemas.base import Persona  # noqa: TCH001
 
 
 class HealthStatus(BaseModel):
@@ -35,7 +35,7 @@ class QueryRequest(BaseModel):
 class StreamEvent(BaseModel):
     """A single Server-Sent Event envelope."""
 
-    event: Literal["token", "complete"]
+    event: Literal["token", "complete", "error", "thinking"]
     data: dict[str, Any] | str
 
 
@@ -45,3 +45,9 @@ class IngestResponse(BaseModel):
     task_id: str
     filename: str
     status: Literal["queued", "processing", "completed"]
+
+
+class MemoryStatus(BaseModel):
+    """Summary of indexed content in the vector store."""
+
+    chunk_count: int = Field(..., ge=0)

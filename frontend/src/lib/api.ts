@@ -3,6 +3,7 @@ import type {
   HealthStatus,
   IngestRequest,
   IngestResponse,
+  MemoryStatus,
   QueryRequest,
   QueryResponse,
   QueryStreamEvent,
@@ -31,10 +32,16 @@ export async function getHealth(): Promise<HealthStatus> {
   return (await response.json()) as HealthStatus;
 }
 
+export async function getMemoryStatus(): Promise<MemoryStatus> {
+  const response = await makeRequest("/memory/status", { method: "GET" });
+  return (await response.json()) as MemoryStatus;
+}
+
 export async function submitQuery(payload: QueryRequest): Promise<QueryResponse> {
   const response = await makeRequest("/query", {
     method: "POST",
     headers: {
+      Accept: "application/json",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ ...payload, stream: false }),
@@ -203,8 +210,16 @@ function parseSseEvent(chunk: string): QueryStreamEvent | undefined {
 
   const parsedData = parseSseData(dataPayload.trim());
 
-  if (eventName === "token" && isTokenEventData(parsedData)) {
-    return { event: "token", data: parsedData };
+  if (eventName === "thinking" && typeof parsedData === "string") {
+    return { event: "thinking", data: parsedData };
+  }
+  if (eventName === "token") {
+    if (typeof parsedData === "string") {
+      return { event: "token", data: parsedData };
+    }
+    if (isTokenEventData(parsedData)) {
+      return { event: "token", data: parsedData.token };
+    }
   }
   if (eventName === "complete" && isTailorOutput(parsedData)) {
     return { event: "complete", data: parsedData };
@@ -238,12 +253,12 @@ function parseSseData(payload: string): unknown {
   return trimmed;
 }
 
-function isTokenEventData(value: unknown): value is { index: number; token: string } {
+function isTokenEventData(value: unknown): value is { token: string } {
   if (value === null || typeof value !== "object") {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return typeof record.index === "number" && typeof record.token === "string";
+  return typeof record.token === "string";
 }
 
 function isTailorOutput(value: unknown): value is TailorOutput {

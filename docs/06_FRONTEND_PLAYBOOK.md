@@ -47,7 +47,7 @@ frontend/
    - Submit triggers `submitQuery` and shows either Tailor output or `AgentFailure` alert.
    - Response card renders tone, confidence, content, follow-up pills, citations, and chunk metadata.
 3. **Ingestion Form**
-   - File input (pdf/docx/pptx/txt/md/html) + Bearer token field.
+   - File input (pdf/docx/pptx/txt/md/xlsx/xls/csv) + Bearer token field.
    - Uses `ingestDocument` helper; surfaces validation copy for missing inputs and success state with queued task info.
 4. **Error Handling**
    - All `AgentFailure` payloads are displayed verbatim with code + message + agent_id.

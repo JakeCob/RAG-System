@@ -23,6 +23,7 @@ dependencies = [
 
     # LLM Integration
     "openai>=1.10.0",
+    "anthropic>=0.18.0",
     "langchain-community>=0.0.20",
 
     # Document Parsing (Dolphin Parser - per INGESTION_STRATEGY.md)
@@ -185,6 +186,7 @@ module = [
     "googleapiclient.*",
     "google.auth.*",
     "google_auth_oauthlib.*",
+    "anthropic.*",
 ]
 ignore_missing_imports = true
 
@@ -206,10 +208,21 @@ markers = [
     "unit: Unit tests (fast, isolated)",
     "integration: Integration tests (may require external services)",
     "slow: Slow-running tests",
+    "real_embeddings: Run EmbeddingGenerator logic with a stubbed model",
 ]
 filterwarnings = [
     "error",
+    "ignore::FutureWarning",
+    "ignore::UserWarning:torch.*",
+    "ignore:.*CUDA.*:UserWarning",
+    "ignore:.*GPU.*:UserWarning",
+    "ignore:.*cuda.*:UserWarning",
+    "ignore:.*gpu.*:UserWarning",
+    "ignore:.*torch.classes.*:UserWarning",
+    "ignore:.*PyTorch version.*:UserWarning",
+    "ignore:.*not compiled with CUDA.*:UserWarning",
     "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
 
 # =============================================================================

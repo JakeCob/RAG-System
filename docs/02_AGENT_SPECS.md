@@ -16,7 +16,8 @@ Interfaces with external data sources (GDrive, Web, APIs, Local FS) to retrieve 
 
 ### Parser Agent (Ingestion / Dolphin)
 **Responsibility:** "The Eyes."
-Ingests raw documents (PDF, HTML, DOCX, PPTX) and converts them into semantically rich, structured data. It must handle OCR, layout detection (tables vs. text), and chunking.
+Ingests raw documents (PDF, DOCX, PPTX, TXT, MD, XLSX, CSV) and converts them into semantically rich, structured data. It must handle OCR, layout detection (tables vs. text), and chunking.
+HTML ingestion is handled by the Web Connector to ensure boilerplate removal and sanitization.
 *   **Primary Task:** Convert `Blob` -> `List[StructuredChunk]`.
 *   **Key Behavior:** Must detect tables and serialize them as Markdown/CSV to preserve structure.
 
@@ -86,7 +87,9 @@ class ConnectorOutput(BaseModel):
 
 class ParserInput(BaseModel):
     file_path: str = Field(..., description="Local path or temp URL to the file")
-    file_type: Literal["pdf", "html", "docx", "pptx", "txt"]
+    file_type: Literal[
+        "pdf", "docx", "pptx", "txt", "md", "xlsx", "xls", "csv"
+    ]
     ingestion_source: Literal["gdrive", "local", "web_scrape"]
     force_ocr: bool = False
 
@@ -95,7 +98,7 @@ class ParsedChunk(BaseModel):
     content: str = Field(..., description="The text content or serialized table markdown")
     chunk_index: int
     page_number: Optional[int]
-    layout_type: Literal["text", "table", "image", "header"]
+    layout_type: Literal["text", "table", "image", "header", "list"]
     bbox: Optional[List[float]] = Field(None, description="[x1, y1, x2, y2] coordinates if applicable")
 
 class ParserOutput(BaseModel):
@@ -192,6 +195,24 @@ class IngestResponse(BaseModel):
 
 ---
 
+## 2.4.5 Known Limitations
+
+### Image Processing (Phase 4)
+
+Supported:
+- Image detection and extraction
+- Caption/alt-text preservation
+- Image position tracking (page number)
+
+Not Supported (Phase 4):
+- OCR on embedded images
+- Visual content understanding
+- Chart/diagram data extraction
+- Screenshot text recognition
+
+See docs/03_INGESTION_STRATEGY.md Section 4.4 for workarounds.
+Roadmap: Full image understanding planned for Phase 5 (VLM integration).
+
 ## 3. State Management Protocol
 
 State is passed as a serializable JSON object (or Pydantic model) called `ConversationState`. This is maintained by the Orchestrator and passed *by reference* or *value* depending on the implementation (likely passed as a context object to agent functions).
@@ -255,9 +276,18 @@ class AgentFailure(BaseModel):
 | `ERR_GUARDRAIL_INJECTION` | Prompt injection detected | Block request, warn user |
 | `ERR_GUARDRAIL_UNSAFE` | Output contains unsafe content/PII | Block response, retry with stricter instructions |
 | `ERR_CONNECTOR_AUTH` | Authentication failed (401/403) | Request new credentials or skip |
+| `ERR_CONNECTOR_BLOCKED_DOMAIN` | Domain not allowed by policy | Notify user, skip source |
+| `ERR_CONNECTOR_INVALID_CONTENT` | No extractable content from source | Notify user, skip source |
 | `ERR_CONNECTOR_NOT_FOUND` | Source not found (404) | Notify user, skip source |
 | `ERR_PARSER_ENCRYPTED` | File is password protected | Ask user for password or skip |
 | `ERR_PARSER_UNSUPPORTED` | File type not supported | Notify user, skip file |
+| `ERR_PARSER_UNSUPPORTED_FORMAT` | File extension not supported | Notify user, skip file |
+| `ERR_PARSER_INVALID_INPUT` | Parsing failed on invalid input | Log and skip file |
+| `ERR_PARSER_OCR_FAILED` | OCR engine failed | Notify user or retry without OCR |
+| `ERR_PARSER_CORRUPTED_FILE` | File is corrupted or unreadable | Notify user, skip file |
 | `ERR_MEMORY_NO_RESULTS` | No embeddings found > threshold | Broaden search or ask clarifying question |
 | `ERR_TAILOR_HALLUCINATION` | Verification failed (no citations) | Retry with strict instruction or fallback to "I don't know" |
 | `ERR_TIMEOUT` | Agent took too long | Retry once, then fail |
+| `ERR_LLM_RATE_LIMIT` | LLM API rate limit exceeded (429) | Retry with exponential backoff (recoverable=True) |
+| `ERR_LLM_TIMEOUT` | LLM request timed out | Retry or fail gracefully (recoverable=True) |
+| `ERR_LLM_INVALID_KEY` | Invalid LLM API key (401/403) | Request new key (recoverable=False) |

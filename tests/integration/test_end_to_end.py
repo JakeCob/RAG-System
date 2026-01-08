@@ -12,7 +12,7 @@ from app.agents import ROMAOrchestrator
 from app.exceptions import AgentFailureError
 from app.ingestion import IngestionService
 from app.memory import MemoryAgent
-from app.schemas import ErrorCodes, QueryRequest, TailorOutput
+from app.schemas import ErrorCodes, MemoryQuery, QueryRequest, TailorOutput
 
 
 class TestEndToEnd:
@@ -23,10 +23,10 @@ class TestEndToEnd:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_full_query_flow(self) -> None:
+    async def test_full_query_flow(self, tmp_path) -> None:
         """Test the complete query flow with a single ingested document."""
 
-        memory = MemoryAgent()
+        memory = MemoryAgent(db_path=str(tmp_path / "test.lance"))
         ingestion = IngestionService(memory_agent=memory)
         await ingestion.ingest_document(
             content="Project Alpha is launching in May according to the roadmap.",
@@ -53,10 +53,10 @@ class TestEndToEnd:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_multi_source_retrieval(self) -> None:
+    async def test_multi_source_retrieval(self, tmp_path) -> None:
         """Test retrieval across multiple sources (GDrive + Web)."""
 
-        memory = MemoryAgent()
+        memory = MemoryAgent(db_path=str(tmp_path / "test.lance"))
         ingestion = IngestionService(memory_agent=memory)
         await ingestion.ingest_document(
             content="Redwood compliance update: audits complete and new SOP active.",
@@ -79,7 +79,9 @@ class TestEndToEnd:
             )
         )
 
-        source_ids = {citation.source_id for citation in result.final_response.citations}
+        source_ids = {
+            citation.source_id for citation in result.final_response.citations
+        }
         assert "gdrive_compliance_doc" in source_ids
         assert "web_status_page" in source_ids
 
@@ -90,10 +92,10 @@ class TestEndToEnd:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_error_recovery_flow(self) -> None:
+    async def test_error_recovery_flow(self, tmp_path) -> None:
         """Test graceful handling when a source fails initially."""
 
-        base_memory = MemoryAgent()
+        base_memory = MemoryAgent(db_path=str(tmp_path / "test.lance"))
         ingestion = IngestionService(memory_agent=base_memory)
         await ingestion.ingest_document(
             content="Phoenix playbook documents the May readiness review.",
@@ -107,14 +109,7 @@ class TestEndToEnd:
                 self._delegate = base_memory
                 self._should_fail = True
 
-            async def retrieve(
-                self,
-                *,
-                query_text: str,
-                top_k: int = 5,
-                min_relevance_score: float = 0.7,
-                filters: dict[str, object] | None = None,
-            ):
+            async def query(self, query: MemoryQuery):
                 if self._should_fail:
                     self._should_fail = False
                     raise AgentFailureError(
@@ -123,12 +118,7 @@ class TestEndToEnd:
                         message="Temporary LanceDB outage",
                         recoverable=True,
                     )
-                return await self._delegate.retrieve(
-                    query_text=query_text,
-                    top_k=top_k,
-                    min_relevance_score=min_relevance_score,
-                    filters=filters,
-                )
+                return await self._delegate.query(query)
 
         orchestrator = ROMAOrchestrator(memory_agent=FlakyMemory())
         result = await orchestrator.run_query(
@@ -136,5 +126,8 @@ class TestEndToEnd:
         )
 
         response = result.final_response
-        assert any("Retry planning iteration" in step.description for step in result.execution_plan)
+        assert any(
+            "Retry planning iteration" in step.description
+            for step in result.execution_plan
+        )
         assert "May" in response.content

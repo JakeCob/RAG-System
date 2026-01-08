@@ -41,11 +41,19 @@ class ErrorCodes:
 
     # Connector
     CONNECTOR_AUTH = "ERR_CONNECTOR_AUTH"
+    CONNECTOR_BLOCKED_DOMAIN = "ERR_CONNECTOR_BLOCKED_DOMAIN"
+    CONNECTOR_INVALID_CONTENT = "ERR_CONNECTOR_INVALID_CONTENT"
     CONNECTOR_NOT_FOUND = "ERR_CONNECTOR_NOT_FOUND"
+    CONNECTOR_RATE_LIMIT = "ERR_CONNECTOR_RATE_LIMIT"
+    CONNECTOR_NETWORK = "ERR_CONNECTOR_NETWORK"
 
     # Parser
     PARSER_ENCRYPTED = "ERR_PARSER_ENCRYPTED"
     PARSER_UNSUPPORTED = "ERR_PARSER_UNSUPPORTED"
+    PARSER_UNSUPPORTED_FORMAT = "ERR_PARSER_UNSUPPORTED_FORMAT"
+    PARSER_INVALID_INPUT = "ERR_PARSER_INVALID_INPUT"
+    PARSER_OCR_FAILED = "ERR_PARSER_OCR_FAILED"
+    PARSER_CORRUPTED_FILE = "ERR_PARSER_CORRUPTED_FILE"
 
     # Memory
     MEMORY_NO_RESULTS = "ERR_MEMORY_NO_RESULTS"
@@ -60,8 +68,17 @@ class ErrorCodes:
 # Type aliases for common literals
 SourceType = Literal["gdrive", "web", "local"]
 IngestionSource = Literal["gdrive", "local", "web_scrape"]  # Per AGENT_SPECS.md
-FileType = Literal["pdf", "html", "docx", "pptx", "txt", "md"]
-LayoutType = Literal["text", "table", "image", "header"]
+FileType = Literal[
+    "pdf",
+    "docx",
+    "pptx",
+    "txt",
+    "md",
+    "xlsx",
+    "xls",
+    "csv",
+]
+LayoutType = Literal["text", "table", "image", "header", "list"]
 Persona = Literal["Technical", "Executive", "General"]
 CheckType = Literal["input_validation", "output_safety"]
 RiskCategory = Literal["injection", "pii", "hate_speech", "malicious_code", "none"]

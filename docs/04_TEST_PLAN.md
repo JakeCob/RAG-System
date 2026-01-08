@@ -54,7 +54,7 @@ We use `pytest` fixtures to simulate external systems. **No network calls** are 
     1.  `test_parse_malformed_pdf`: Input a corrupted PDF byte stream. Expect `AgentFailure` (recoverable=False).
     2.  `test_parse_empty_string`: Input empty text file. Expect explicit warning or empty chunk list, not a crash.
     3.  `test_parse_table_structure`: Input Markdown with a table. Assert output `ParsedChunk` preserves pipe `|` separators and is `layout_type="table"`.
-    4.  `test_sanitize_html`: Input HTML with `<script>` tags. Assert output text is stripped of scripts.
+    4.  `test_reject_html_files`: Input `.html` file bytes. Assert parser returns `AgentFailure` instructing Web Connector usage.
     5.  `test_parse_docx_structure`: Input a mock DOCX byte stream. Assert headers and paragraphs are preserved.
     6.  `test_parse_pptx_slides`: Input a mock PPTX. Assert slide titles become headers and speaker notes are extracted.
     7.  `test_parse_excel_csv`: Input a CSV/XLSX. Assert rows are converted to Markdown table format.
@@ -98,7 +98,31 @@ We use `pytest` fixtures to simulate external systems. **No network calls** are 
     2.  `test_markdown_header_splitting`: Input Markdown with headers. Assert chunks do not break in the middle of a section if it fits within the limit.
     3.  `test_chunk_overlap`: Assert that the end of Chunk A matches the beginning of Chunk B (approx. 50-100 tokens).
 
-### 3.7 ROMA Orchestrator ("The Brain")
+### 3.7 LLM Service ("The Language Engine")
+*   **Test Class:** `TestLLMService`
+*   **Location:** `tests/unit/services/test_llm_service.py`
+*   **Critical Cases:**
+    1.  `test_openai_generate_success`: Verify OpenAI API integration returns text correctly.
+    2.  `test_anthropic_generate_success`: Verify Anthropic API integration returns text correctly.
+    3.  `test_rate_limit_retry`: Assert 429 errors trigger exponential backoff (1s, 2s, 4s...) and retry.
+    4.  `test_invalid_api_key`: Assert 401 returns `AgentFailure` with `CONNECTOR_AUTH` error code and `recoverable=False`.
+    5.  `test_timeout_error`: Assert timeouts return `AgentFailure` with `TIMEOUT` error code and `recoverable=True`.
+    6.  `test_stream_generate_yields_chunks`: Verify streaming returns async generator of text chunks.
+    7.  `test_token_counting`: Verify token estimation returns reasonable approximation (~4 chars per token).
+    8.  `test_max_retries_exceeded`: Assert failure after max retries returns `AgentFailure`.
+    9.  `test_server_error_retry`: Assert 5xx errors trigger retry logic before failing.
+    10. `test_non_retryable_client_error`: Assert 4xx errors (except 429) fail immediately without retry.
+
+*   **Integration Tests:**
+    *   **Location:** `tests/integration/test_llm_integration.py`
+    *   **Requirements:** Real API keys required (OPENAI_API_KEY or ANTHROPIC_API_KEY)
+    *   **Critical Cases:**
+        1.  `test_openai_end_to_end_query`: Real OpenAI API call with simple math question, verify correct answer.
+        2.  `test_anthropic_end_to_end_query`: Real Anthropic API call with geography question, verify correct answer.
+        3.  `test_streaming_integration`: Real streaming API call, verify chunks received.
+        4.  `test_citation_format_integration`: Verify LLM can generate proper citation markers [1], [2].
+
+### 3.8 ROMA Orchestrator ("The Brain")
 *   **Test Class:** `TestROMAOrchestrator`
 *   **Critical Cases:**
     1.  `test_plan_generation`: Input query "Compare X and Y". Assert the planner outputs a multi-step plan (Retrieve X, Retrieve Y, Synthesize).
@@ -106,7 +130,7 @@ We use `pytest` fixtures to simulate external systems. **No network calls** are 
     3.  `test_max_recursion_depth`: Force a loop where the planner keeps adding steps. Assert it halts at `n=5` iterations.
     4.  `test_verifier_node_rejection`: Simulate the "Verifier" step rejecting a generated answer due to low citation score. Assert the plan loops back to retrieval or synthesis.
 
-### 3.8 State Management ("The Memory")
+### 3.9 State Management ("The Memory")
 *   **Test Class:** `TestConversationState`
 *   **Critical Cases:**
     1.  `test_history_appending`: Add a user message and assistant response. Assert `history` list length increases by 2 and timestamps are present.

@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 
+from app.schemas import AgentFailure
 from app.schemas.parser import ParsedChunk
 
 
@@ -26,7 +27,7 @@ class BaseParser:
 
     def parse(
         self, content: str | bytes, metadata: dict[str, Any]
-    ) -> list[ParsedChunk]:
+    ) -> list[ParsedChunk] | AgentFailure:
         """Parse raw content into structured chunks.
 
         Args:
@@ -34,7 +35,7 @@ class BaseParser:
             metadata: Metadata associated with the content (e.g., URL, title).
 
         Returns:
-            A list of structured chunks.
+            A list of structured chunks or AgentFailure on error.
         """
         if not isinstance(metadata, dict):
             raise TypeError("metadata must be a dict.")

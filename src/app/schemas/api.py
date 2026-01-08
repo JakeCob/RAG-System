@@ -35,7 +35,7 @@ class QueryRequest(BaseModel):
 class StreamEvent(BaseModel):
     """A single Server-Sent Event envelope."""
 
-    event: Literal["token", "complete", "error"]
+    event: Literal["token", "complete", "error", "thinking"]
     data: dict[str, Any] | str
 
 
@@ -45,3 +45,9 @@ class IngestResponse(BaseModel):
     task_id: str
     filename: str
     status: Literal["queued", "processing", "completed"]
+
+
+class MemoryStatus(BaseModel):
+    """Summary of indexed content in the vector store."""
+
+    chunk_count: int = Field(..., ge=0)

@@ -58,6 +58,7 @@ dmypy.json
 *.sqlite
 chroma_data/
 lancedb_data/
+.lancedb/
 
 # Secrets
 .env

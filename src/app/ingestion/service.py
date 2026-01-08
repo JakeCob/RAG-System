@@ -7,8 +7,9 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from app.exceptions import AgentFailureError
-from app.schemas import AgentFailure, ParsedChunk, ParserOutput
+from app.schemas import AgentFailure, ErrorCodes, ParsedChunk, ParserOutput
 from ingestion.base import BaseParser
+from ingestion.dolphin import DolphinParser
 
 
 if TYPE_CHECKING:
@@ -28,7 +29,7 @@ class IngestionService:
         gdrive_connector: GDriveConnector | None = None,
     ) -> None:
         self._memory = memory_agent
-        self._parser = parser or BaseParser()
+        self._parser = parser or DolphinParser()
         self._gdrive = gdrive_connector
 
     async def ingest_document(
@@ -60,6 +61,16 @@ class IngestionService:
                 message=chunks.message,
                 recoverable=chunks.recoverable,
                 details=chunks.details,
+            )
+        if not chunks:
+            raise AgentFailureError(
+                agent_id="parser.dolphin",
+                error_code=ErrorCodes.PARSER_INVALID_INPUT,
+                message=(
+                    "Parser produced no text. The document may be empty or scanned "
+                    "without OCR."
+                ),
+                recoverable=True,
             )
         parser_output = _build_parser_output(chunks, metadata)
 

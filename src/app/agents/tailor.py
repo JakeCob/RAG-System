@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import AsyncGenerator, Iterable
 from statistics import fmean
-from typing import TYPE_CHECKING
 
 from app.exceptions import AgentFailureError
 from app.schemas import (
@@ -22,10 +22,6 @@ from app.schemas import (
     TailorOutput,
 )
 from app.services.llm import LLMService
-
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 
 logger = logging.getLogger(__name__)
@@ -90,35 +86,54 @@ class TailorAgent:
                 details=result.details,
             )
 
-        # Extract citations from response
-        citations = self._extract_citations(result, unique_context)
+        return self._build_tailor_output(payload, unique_context, result)
 
-        # Validate citations are grounded
-        if not citations:
-            logger.warning(
-                "LLM response missing citations",
-                extra={"agent_id": self._agent_id, "response": result[:200]},
-            )
-            raise AgentFailureError(
+    async def stream_response(
+        self,
+        payload: TailorInput,
+    ) -> AsyncGenerator[str | AgentFailure, None]:
+        """Generate response tokens with streaming output."""
+        context = payload.context_chunks
+        if not context:
+            yield AgentFailure(
                 agent_id=self._agent_id,
                 error_code=ErrorCodes.TAILOR_HALLUCINATION,
-                message="LLM response missing required citations",
+                message="No context available to ground the response.",
+                recoverable=False,
+            )
+            return
+
+        unique_context = _deduplicate_context(context)
+        context_text = self._build_context_text(unique_context)
+        system_prompt = self._build_system_prompt(payload.persona)
+        user_prompt = self._build_user_prompt(
+            payload.user_query, context_text, payload.formatting_instructions
+        )
+
+        try:
+            async for token in self._llm_service.stream_generate(
+                prompt=user_prompt, system=system_prompt, max_tokens=2048
+            ):
+                yield token
+        except Exception as exc:
+            logger.exception(
+                "LLM streaming failed",
+                extra={"agent_id": self._agent_id, "error": str(exc)},
+            )
+            yield AgentFailure(
+                agent_id=self._agent_id,
+                error_code=ErrorCodes.TIMEOUT,
+                message=f"LLM streaming failed: {type(exc).__name__}",
                 recoverable=True,
+                details={"error": str(exc)},
             )
 
-        # Generate follow-up suggestions
-        followups = self._generate_followups(payload.user_query)
-
-        # Calculate confidence
-        confidence = _calculate_confidence(unique_context)
-
-        return TailorOutput(
-            content=result,
-            citations=citations,
-            tone_used=payload.persona,
-            follow_up_suggestions=followups,
-            confidence_score=confidence,
-        )
+    def finalize_streamed_output(
+        self, payload: TailorInput, content: str
+    ) -> TailorOutput:
+        """Build a TailorOutput from streamed content."""
+        unique_context = _deduplicate_context(payload.context_chunks)
+        return self._build_tailor_output(payload, unique_context, content)
 
     def _build_system_prompt(self, persona: str) -> str:
         """Build system prompt for LLM synthesis."""
@@ -213,6 +228,36 @@ Synthesize a grounded answer with citations."""
 
         return citations
 
+    def _build_tailor_output(
+        self,
+        payload: TailorInput,
+        context: list[RetrievedContext],
+        content: str,
+    ) -> TailorOutput:
+        citations = self._extract_citations(content, context)
+        if not citations:
+            logger.warning(
+                "LLM response missing citations",
+                extra={"agent_id": self._agent_id, "response": content[:200]},
+            )
+            raise AgentFailureError(
+                agent_id=self._agent_id,
+                error_code=ErrorCodes.TAILOR_HALLUCINATION,
+                message="LLM response missing required citations",
+                recoverable=True,
+            )
+
+        followups = self._generate_followups(payload.user_query)
+        confidence = _calculate_confidence(context)
+
+        return TailorOutput(
+            content=content,
+            citations=citations,
+            tone_used=payload.persona,
+            follow_up_suggestions=followups,
+            confidence_score=confidence,
+        )
+
     def _generate_followups(self, query: str) -> list[str]:
         """Generate follow-up suggestions based on query."""
         # Simple rule-based follow-ups (could be enhanced with LLM in future)
@@ -232,12 +277,17 @@ Synthesize a grounded answer with citations."""
 def _deduplicate_context(chunks: Iterable[RetrievedContext]) -> list[RetrievedContext]:
     """Return context chunks without duplicate chunk_ids."""
 
-    seen: set[str] = set()
+    seen_ids: set[str] = set()
+    seen_content: set[str] = set()
     ordered: list[RetrievedContext] = []
     for chunk in chunks:
-        if chunk.chunk_id in seen:
+        if chunk.chunk_id in seen_ids:
             continue
-        seen.add(chunk.chunk_id)
+        normalized = re.sub(r"\s+", " ", chunk.content).strip().lower()
+        if normalized in seen_content:
+            continue
+        seen_ids.add(chunk.chunk_id)
+        seen_content.add(normalized)
         ordered.append(chunk)
     return ordered
 

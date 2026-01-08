@@ -42,6 +42,23 @@ MAX_ROMA_DEPTH = 5
 logger = logging.getLogger(__name__)
 
 
+def _summary_formatting_instructions() -> str:
+    return (
+        "Provide a concise summary with 4-6 bullet points plus a one-sentence "
+        "overview. Cite at least 3 distinct chunks when available."
+    )
+
+
+def _summary_min_citations(contexts: Sequence[RetrievedContext]) -> int:
+    unique_content = {
+        re.sub(r"\s+", " ", context.content).strip().lower()
+        for context in contexts
+        if context.content and context.content.strip()
+    }
+    unique_count = len(unique_content) or len(contexts)
+    return max(1, min(3, unique_count))
+
+
 class GuardrailsProtocol(Protocol):
     async def enforce(
         self, payload: GuardrailsInput
@@ -56,6 +73,16 @@ class MemoryAgentProtocol(Protocol):
 
 class TailorProtocol(Protocol):
     async def process(self, payload: TailorInput) -> TailorOutput:
+        ...
+
+    async def stream_response(
+        self, payload: TailorInput
+    ) -> AsyncGenerator[str | AgentFailure, None]:
+        ...
+
+    def finalize_streamed_output(
+        self, payload: TailorInput, content: str
+    ) -> TailorOutput:
         ...
 
 
@@ -93,6 +120,7 @@ class ROMAOrchestrator:
         start = time.perf_counter()
         self._plan = []
         sanitized_query = await self._apply_input_guardrails(request.text)
+        summary_mode = self._is_summary_query(sanitized_query)
         topics = await self._extract_topics(sanitized_query)
         attempt = 0
         last_error: AgentFailureError | None = None
@@ -100,13 +128,13 @@ class ROMAOrchestrator:
         while attempt < self._max_depth:
             attempt += 1
             contexts, retrieval_error = await self._retrieve_contexts(
-                sanitized_query, topics, attempt
+                sanitized_query, topics, attempt, summary=summary_mode
             )
             if retrieval_error:
                 last_error = retrieval_error
             else:
                 synth_result = await self._synthesize_and_verify(
-                    sanitized_query, contexts, request.persona, attempt
+                    sanitized_query, contexts, request.persona, attempt, summary=summary_mode
                 )
                 if isinstance(synth_result, TailorOutput):
                     total_ms = round((time.perf_counter() - start) * 1000, 2)
@@ -144,18 +172,64 @@ class ROMAOrchestrator:
     ) -> AsyncGenerator[StreamEvent, None]:
         """Run the orchestrator and emit SSE events."""
 
+        self._plan = []
         try:
-            result = await self.run_query(request)
+            sanitized_query = await self._apply_input_guardrails(request.text)
         except AgentFailureError as exc:
             yield StreamEvent(event="error", data=exc.failure.model_dump())
             return
 
-        response = result.final_response
-        for index, token in enumerate(response.content.split()):
-            yield StreamEvent(event="token", data={"index": index, "token": token})
+        summary_mode = self._is_summary_query(sanitized_query)
+        yield StreamEvent(event="thinking", data="Searching knowledge base...")
+        topics = await self._extract_topics(sanitized_query)
+        contexts, retrieval_error = await self._retrieve_contexts(
+            sanitized_query, topics, attempt=1, summary=summary_mode
+        )
+        if retrieval_error:
+            yield StreamEvent(event="error", data=retrieval_error.failure.model_dump())
+            return
+
+        if not contexts:
+            failure = AgentFailure(
+                agent_id="orchestrator.memory",
+                error_code=ErrorCodes.MEMORY_NO_RESULTS,
+                message="No context available after retrieval.",
+                recoverable=True,
+            )
+            yield StreamEvent(event="error", data=failure.model_dump())
+            return
+
+        yield StreamEvent(event="thinking", data="Generating response...")
+        tailor_input = TailorInput(
+            user_query=sanitized_query,
+            context_chunks=contexts,
+            persona=request.persona,
+            formatting_instructions=(
+                _summary_formatting_instructions() if summary_mode else None
+            ),
+        )
+
+        accumulated = ""
+        async for token in self._tailor_agent.stream_response(tailor_input):
+            if isinstance(token, AgentFailure):
+                yield StreamEvent(event="error", data=token.model_dump())
+                return
+            accumulated += token
+            yield StreamEvent(event="token", data=token)
             await self._maybe_pause()
 
-        yield StreamEvent(event="complete", data=response.model_dump())
+        try:
+            output = self._tailor_agent.finalize_streamed_output(
+                tailor_input, accumulated
+            )
+            min_citations = _summary_min_citations(contexts) if summary_mode else 1
+            self._verify_tailor_output(output, contexts, min_citations=min_citations)
+            sanitized = await self._apply_output_guardrails(output)
+        except AgentFailureError as exc:
+            yield StreamEvent(event="error", data=exc.failure.model_dump())
+            return
+
+        yield StreamEvent(event="complete", data=sanitized.model_dump())
 
     async def _apply_input_guardrails(self, content: str) -> str:
         step = self._add_plan_step(
@@ -177,12 +251,19 @@ class ROMAOrchestrator:
         return result.sanitized_content or content
 
     async def _retrieve_contexts(
-        self, query: str, topics: list[str], attempt: int
+        self,
+        query: str,
+        topics: list[str],
+        attempt: int,
+        *,
+        summary: bool = False,
     ) -> tuple[list[RetrievedContext], AgentFailureError | None]:
         """Execute memory retrieval for each topic."""
 
         contexts: list[RetrievedContext] = []
         targets = topics or [query]
+        top_k = 12 if summary else 5
+        min_score = 0.4 if summary else 0.7
         for topic in targets:
             step = self._add_plan_step(
                 description=f"Retrieve context for '{topic}' (attempt {attempt})",
@@ -193,16 +274,39 @@ class ROMAOrchestrator:
                 # MemoryAgent.query() takes a MemoryQuery object
                 memory_query = MemoryQuery(
                     query_text=topic,
-                    top_k=5,
-                    min_relevance_score=0.7,
+                    top_k=top_k,
+                    min_relevance_score=min_score,
                     filters=None,
                 )
                 result = await self._memory_agent.query(memory_query)
 
                 # Handle AgentFailure response
                 if isinstance(result, AgentFailure):
-                    step.status = "failed"
-                    raise self._as_error(result)
+                    if result.error_code == ErrorCodes.MEMORY_NO_RESULTS:
+                        step.status = "failed"
+                        relaxed_step = self._add_plan_step(
+                            description=(
+                                f"Relax retrieval threshold for '{topic}' "
+                                f"(attempt {attempt})"
+                            ),
+                            tool_call="memory.query",
+                        )
+                        relaxed_step.status = "in_progress"
+                        relaxed_query = MemoryQuery(
+                            query_text=topic,
+                            top_k=18 if summary else 8,
+                            min_relevance_score=0.2 if summary else 0.3,
+                            filters=None,
+                        )
+                        relaxed_result = await self._memory_agent.query(relaxed_query)
+                        if isinstance(relaxed_result, AgentFailure):
+                            relaxed_step.status = "failed"
+                            raise self._as_error(relaxed_result)
+                        relaxed_step.status = "completed"
+                        result = relaxed_result
+                    else:
+                        step.status = "failed"
+                        raise self._as_error(result)
 
                 # Extract contexts from MemoryOutput
                 contexts.extend(result.results)
@@ -219,6 +323,8 @@ class ROMAOrchestrator:
         contexts: list[RetrievedContext],
         persona: str,
         attempt: int,
+        *,
+        summary: bool = False,
     ) -> TailorOutput | AgentFailureError:
         """Call the Tailor agent followed by verifier + output guardrails."""
 
@@ -241,10 +347,14 @@ class ROMAOrchestrator:
             user_query=query,
             context_chunks=contexts,
             persona=persona,  # type: ignore[arg-type]
+            formatting_instructions=(
+                _summary_formatting_instructions() if summary else None
+            ),
         )
         try:
             response = await self._tailor_agent.process(payload)
-            self._verify_tailor_output(response, contexts)
+            min_citations = _summary_min_citations(contexts) if summary else 1
+            self._verify_tailor_output(response, contexts, min_citations=min_citations)
             sanitized = await self._apply_output_guardrails(response)
         except AgentFailureError as exc:
             step.status = "failed"
@@ -269,15 +379,19 @@ class ROMAOrchestrator:
         return response.model_copy(update={"content": result.sanitized_content})
 
     def _verify_tailor_output(
-        self, response: TailorOutput, contexts: Sequence[RetrievedContext]
+        self,
+        response: TailorOutput,
+        contexts: Sequence[RetrievedContext],
+        *,
+        min_citations: int = 1,
     ) -> None:
         """Ensure the Tailor output is grounded in retrieved contexts."""
 
-        if not response.citations:
+        if not response.citations or len(response.citations) < min_citations:
             raise AgentFailureError(
                 agent_id="orchestrator.verifier",
                 error_code=ErrorCodes.TAILOR_HALLUCINATION,
-                message="Verifier rejected response: missing citations.",
+                message="Verifier rejected response: insufficient citations.",
                 recoverable=True,
             )
 
@@ -396,6 +510,14 @@ Return ONLY the JSON array, no explanation."""
             message=failure.message,
             recoverable=failure.recoverable,
             details=failure.details,
+        )
+
+    @staticmethod
+    def _is_summary_query(query: str) -> bool:
+        lowered = query.lower()
+        return any(
+            keyword in lowered
+            for keyword in ("summarize", "summary", "overview", "high-level", "tl;dr", "tldr")
         )
 
 

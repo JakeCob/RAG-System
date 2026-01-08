@@ -123,3 +123,7 @@ class MemoryAgent:
             Number of chunks deleted.
         """
         return await self.store.delete_by_source(source_id)
+
+    async def count_documents(self) -> int:
+        """Return the total number of stored chunks."""
+        return await self.store.count_documents()

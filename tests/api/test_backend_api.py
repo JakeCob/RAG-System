@@ -65,6 +65,17 @@ class TestBackendAPI:
 
     @pytest.mark.integration
     @pytest.mark.anyio
+    async def test_memory_status(self, async_client: AsyncClient) -> None:
+        """GET /memory/status returns indexed chunk count."""
+
+        response = await async_client.get("/memory/status")
+        assert response.status_code == 200
+        body = response.json()
+        assert isinstance(body.get("chunk_count"), int)
+        assert body["chunk_count"] >= 1
+
+    @pytest.mark.integration
+    @pytest.mark.anyio
     async def test_query_endpoint_valid(self, async_client: AsyncClient) -> None:
         """POST /query with {"text": "Hello"} returns TailorOutput payload."""
 
@@ -110,12 +121,12 @@ class TestBackendAPI:
     @pytest.mark.integration
     @pytest.mark.anyio
     async def test_ingest_upload_file(self, async_client: AsyncClient) -> None:
-        """POST /ingest with multipart PDF returns 202 Accepted."""
+        """POST /ingest with multipart text returns 202 Accepted."""
 
         boundary, body = _build_multipart_body(
-            filename="example.pdf",
-            data=b"%PDF-1.4 mock",
-            content_type="application/pdf",
+            filename="example.txt",
+            data=b"Example ingestion text",
+            content_type="text/plain",
         )
         headers = {
             "Authorization": "Bearer local-dev-token",
@@ -126,7 +137,7 @@ class TestBackendAPI:
         assert response.status_code == 202
         body = response.json()
         assert body["status"] == "queued"
-        assert body["filename"] == "example.pdf"
+        assert body["filename"] == "example.txt"
         assert body["task_id"]
 
     @pytest.mark.integration
@@ -135,9 +146,9 @@ class TestBackendAPI:
         """Request without Bearer Token returns 401 Unauthorized."""
 
         boundary, body = _build_multipart_body(
-            filename="example.pdf",
-            data=b"%PDF-1.4 mock",
-            content_type="application/pdf",
+            filename="example.txt",
+            data=b"Example ingestion text",
+            content_type="text/plain",
         )
         headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
         response = await async_client.post("/ingest", content=body, headers=headers)

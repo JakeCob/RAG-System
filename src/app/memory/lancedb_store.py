@@ -105,6 +105,22 @@ class LanceDBStore:
             # Table doesn't exist, create it
             self.db.create_table(self.table_name, data=data, mode="overwrite")
 
+    async def count_documents(self) -> int:
+        """Return the total number of stored chunks."""
+        try:
+            table = self.db.open_table(self.table_name)
+        except (FileNotFoundError, ValueError):
+            return 0
+
+        count_rows = getattr(table, "count_rows", None)
+        if callable(count_rows):
+            return int(count_rows())
+
+        try:
+            return len(table.to_pandas())
+        except Exception:
+            return 0
+
     async def search(
         self,
         query_embedding: list[float],

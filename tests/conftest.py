@@ -124,6 +124,9 @@ def _mock_embeddings_for_tests(request, monkeypatch) -> None:  # noqa: C901
             self._docs = [doc for doc in self._docs if doc["source_id"] != source_id]
             return before - len(self._docs)
 
+        async def count_documents(self) -> int:
+            return len(self._docs)
+
         def _cosine_similarity(self, left: list[float], right: list[float]) -> float:
             if not left or not right:
                 return 0.0
@@ -202,6 +205,22 @@ def _mock_embeddings_for_tests(request, monkeypatch) -> None:  # noqa: C901
                 if "May" in prompt:
                     return f"Project timeline includes May. {citation_text}"
                 return f"Stub response. {citation_text}"
+
+            async def stream_generate(
+                self,
+                *,
+                prompt: str,
+                system: str | None = None,
+                temperature: float | None = None,
+                max_tokens: int | None = None,
+            ) -> AsyncGenerator[str, None]:
+                response = await self.generate(
+                    prompt=prompt,
+                    system=system,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                yield response
 
         monkeypatch.setattr(
             "app.services.llm.LLMService",

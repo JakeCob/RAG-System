@@ -25,12 +25,14 @@ from app.agents import ROMAOrchestrator
 from app.config import get_settings
 from app.exceptions import AgentFailureError
 from app.ingestion import IngestionService
+from ingestion.dolphin import DolphinParser
 from app.memory import MemoryAgent
 from app.schemas import (
     AgentFailure,
     ErrorCodes,
     HealthStatus,
     IngestResponse,
+    MemoryStatus,
     QueryRequest,
     StreamEvent,
     TailorOutput,
@@ -57,7 +59,8 @@ def _get_memory_agent() -> MemoryAgent:
 @lru_cache
 def _get_ingestion_service() -> IngestionService:
     """Provide a cached ingestion service backed by the memory agent."""
-    return IngestionService(memory_agent=_get_memory_agent())
+    parser = DolphinParser(enable_ocr=settings.ingest_ocr_enabled)
+    return IngestionService(memory_agent=_get_memory_agent(), parser=parser)
 
 
 @lru_cache
@@ -88,6 +91,14 @@ async def health() -> HealthStatus:
     """Return the readiness of dependent services."""
 
     return HealthStatus(db="connected", agents="ready")
+
+
+@app.get("/memory/status", response_model=MemoryStatus)
+async def memory_status() -> MemoryStatus:
+    """Return summary stats for indexed documents."""
+
+    memory = _get_memory_agent()
+    return MemoryStatus(chunk_count=await memory.count_documents())
 
 
 @app.post("/query", response_model=TailorOutput)
@@ -122,6 +133,8 @@ async def _authorize_ingest(authorization: str | None = Header(default=None)) ->
 def _require_ingest_token(authorization: str | None) -> None:
     """Validate Bearer token for ingestion requests."""
 
+    if not settings.ingest_auth_enabled:
+        return
     if not authorization or not authorization.startswith("Bearer "):
         raise _unauthorized("Missing Bearer token.")
 

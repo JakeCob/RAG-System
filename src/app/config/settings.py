@@ -18,6 +18,16 @@ class APISettings(BaseSettings):
         alias="API_INGEST_TOKEN",
         description="Bearer token required for /ingest uploads",
     )
+    ingest_auth_enabled: bool = Field(
+        default=True,
+        alias="INGEST_AUTH_ENABLED",
+        description="When false, /ingest accepts requests without auth",
+    )
+    ingest_ocr_enabled: bool = Field(
+        default=False,
+        alias="INGEST_OCR_ENABLED",
+        description="Enable OCR for scanned PDFs during ingestion",
+    )
     stream_chunk_pause_ms: int = Field(
         default=0,
         alias="STREAM_CHUNK_PAUSE_MS",

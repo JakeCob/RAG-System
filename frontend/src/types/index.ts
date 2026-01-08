@@ -73,7 +73,8 @@ export type QueryResponse = TailorOutput;
 
 /** A single Server-Sent Event emitted by the /query stream */
 export type QueryStreamEvent =
-  | { event: "token"; data: { index: number; token: string } }
+  | { event: "thinking"; data: string }
+  | { event: "token"; data: string }
   | { event: "complete"; data: TailorOutput }
   | { event: "error"; data: AgentFailure };
 
@@ -82,6 +83,11 @@ export interface IngestResponse {
   task_id: string;
   filename: string;
   status: "queued" | "processing" | "completed";
+}
+
+/** Summary of indexed chunks in the vector store */
+export interface MemoryStatus {
+  chunk_count: number;
 }
 
 /** Minimal shape for ingestion requests */

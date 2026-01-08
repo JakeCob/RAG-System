@@ -28,7 +28,7 @@ from app.schemas import (
 
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import AsyncGenerator, Callable
 
 
 class _DeterministicTailor:
@@ -64,6 +64,31 @@ class _DeterministicTailor:
                 )
             ],
             tone_used="General",
+            follow_up_suggestions=["Need more detail?"],
+            confidence_score=0.9,
+        )
+
+    async def stream_response(
+        self, payload: TailorInput
+    ) -> AsyncGenerator[str | AgentFailure, None]:
+        _ = payload
+        for token in ("Mock ", "stream ", "response."):
+            yield token
+
+    def finalize_streamed_output(
+        self, payload: TailorInput, content: str
+    ) -> TailorOutput:
+        return TailorOutput(
+            content=content,
+            citations=[
+                SourceCitation(
+                    source_id="doc-alpha",
+                    chunk_id="chunk-1",
+                    text_snippet="Alpha launches in May.",
+                    url=None,
+                )
+            ],
+            tone_used=payload.persona,
             follow_up_suggestions=["Need more detail?"],
             confidence_score=0.9,
         )
@@ -241,6 +266,47 @@ class TestROMAOrchestrator:
 
         # Ensure the final response is grounded after the verifier retry
         assert result.final_response.citations, "Final response must include citations."
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_stream_query_emits_events(
+        self, orchestrator_factory: Callable[..., ROMAOrchestrator]
+    ) -> None:
+        """Streaming should emit thinking, token, and complete events."""
+
+        orchestrator = orchestrator_factory()
+        events = []
+        async for event in orchestrator.stream_query(QueryRequest(text="Stream it")):
+            events.append(event)
+
+        assert any(event.event == "thinking" for event in events)
+        token_events = [event for event in events if event.event == "token"]
+        assert token_events
+        assert events[-1].event == "complete"
+
+        complete = events[-1].data
+        assert isinstance(complete, dict)
+        assert complete.get("content") == "Mock stream response."
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_stream_query_emits_error_on_failure(
+        self, orchestrator_factory: Callable[..., ROMAOrchestrator]
+    ) -> None:
+        """Streaming should emit error events when retrieval fails."""
+
+        orchestrator = orchestrator_factory(
+            memory=_DeterministicMemory(no_results=True)
+        )
+        events = []
+        async for event in orchestrator.stream_query(QueryRequest(text="Bad query")):
+            events.append(event)
+
+        error_events = [event for event in events if event.event == "error"]
+        assert error_events
+        error_payload = error_events[0].data
+        assert isinstance(error_payload, dict)
+        assert error_payload.get("error_code") == ErrorCodes.MEMORY_NO_RESULTS
 
 
 # Safety guard for the async tests when executed via pytest without asyncio marker.

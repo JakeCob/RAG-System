@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 lancedb
+sentence-transformers>=2.2.2
 psycopg2-binary
 pydantic
 sqlalchemy

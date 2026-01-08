@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { ApiError, getHealth, ingestDocument, submitQuery } from "@/lib/api";
+import {
+  ApiError,
+  getHealth,
+  getMemoryStatus,
+  ingestDocument,
+  streamQuery,
+} from "@/lib/api";
 import type {
   AgentFailure,
   HealthStatus,
   IngestResponse,
+  MemoryStatus,
   Persona,
   QueryResponse,
 } from "@/types";
@@ -18,9 +25,13 @@ type NoticeTone = "success" | "info" | "warning";
 export default function Home(): JSX.Element {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
+  const [memoryStatus, setMemoryStatus] = useState<MemoryStatus | null>(null);
+  const [memoryMessage, setMemoryMessage] = useState<string | null>(null);
   const [queryText, setQueryText] = useState("");
   const [persona, setPersona] = useState<Persona>("General");
-  const [isQuerying, setIsQuerying] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [failure, setFailure] = useState<AgentFailure | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -34,6 +45,7 @@ export default function Home(): JSX.Element {
   const [ingestNotice, setIngestNotice] = useState<{ tone: NoticeTone; message: string } | null>(
     null,
   );
+  const ingestFormRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -56,6 +68,25 @@ export default function Home(): JSX.Element {
     };
   }, []);
 
+  const refreshMemoryStatus = async (): Promise<void> => {
+    try {
+      const snapshot = await getMemoryStatus();
+      setMemoryStatus(snapshot);
+      setMemoryMessage(null);
+      if (snapshot.chunk_count > 0) {
+        setFormMessage(null);
+      }
+    } catch (error: unknown) {
+      const fallback =
+        error instanceof ApiError ? error.message : "Unable to load document status.";
+      setMemoryMessage(fallback);
+    }
+  };
+
+  useEffect(() => {
+    void refreshMemoryStatus();
+  }, []);
+
   const handleQuerySubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
@@ -65,14 +96,43 @@ export default function Home(): JSX.Element {
       setFormMessage("Please enter a question for ROMA to process.");
       return;
     }
-    setIsQuerying(true);
+    if (memoryStatus === null) {
+      setFormMessage("Checking indexed documents. Please try again in a moment.");
+      return;
+    }
+    if (memoryStatus.chunk_count === 0) {
+      setFormMessage("Ingest a document before submitting a query.");
+      return;
+    }
+    setIsStreaming(true);
     setFormMessage(null);
     setFailure(null);
     setResult(null);
+    setStreamingText("");
+    setStreamingStatus("Starting...");
 
     try {
-      const response = await submitQuery({ text: trimmed, persona });
-      setResult(response);
+      for await (const event of streamQuery({ text: trimmed, persona })) {
+        if (event.event === "thinking") {
+          setStreamingStatus(event.data);
+          continue;
+        }
+        if (event.event === "token") {
+          setStreamingText((prev) => prev + event.data);
+          continue;
+        }
+        if (event.event === "complete") {
+          setResult(event.data);
+          setStreamingText(event.data.content);
+          setStreamingStatus("Complete");
+          break;
+        }
+        if (event.event === "error") {
+          setFailure(event.data);
+          setStreamingStatus("Error");
+          break;
+        }
+      }
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         if (error.failure) {
@@ -84,7 +144,7 @@ export default function Home(): JSX.Element {
         setFormMessage("Unexpected error while executing the query.");
       }
     } finally {
-      setIsQuerying(false);
+      setIsStreaming(false);
     }
   };
 
@@ -115,6 +175,7 @@ export default function Home(): JSX.Element {
       setIngestNotice({ tone: "success", message: "Document accepted for processing." });
       setIngestFile(null);
       setFileInputKey((value) => value + 1);
+      await refreshMemoryStatus();
     } catch (error: unknown) {
       if (error instanceof ApiError && error.failure) {
         setIngestFailure(error.failure);
@@ -130,6 +191,10 @@ export default function Home(): JSX.Element {
       setIngesting(false);
     }
   };
+
+  const memoryChecked = memoryStatus !== null;
+  const memoryEmpty = memoryChecked && memoryStatus.chunk_count === 0;
+  const queryLocked = !memoryChecked || memoryEmpty;
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
@@ -157,6 +222,11 @@ export default function Home(): JSX.Element {
                   {healthMessage ?? "Checking LanceDB and agents..."}
                 </p>
               )}
+              {memoryStatus !== null ? (
+                <p className="text-xs text-slate-500">
+                  Indexed chunks: {memoryStatus.chunk_count}
+                </p>
+              ) : null}
             </div>
           </div>
         </header>
@@ -192,6 +262,7 @@ export default function Home(): JSX.Element {
               className="mt-4 h-40 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-base text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white"
               placeholder="e.g., Compare Q3 cloud budget deltas vs. our pricing plan updates."
               value={queryText}
+              disabled={isStreaming || queryLocked}
               onChange={(event) => {
                 setQueryText(event.target.value);
               }}
@@ -203,12 +274,45 @@ export default function Home(): JSX.Element {
               </p>
             ) : null}
 
+            {queryLocked ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="font-semibold">
+                  {memoryChecked ? "No indexed documents yet." : "Checking document index..."}
+                </p>
+                <p className="mt-1">
+                  {memoryChecked
+                    ? "Upload a document to activate ROMA queries."
+                    : "Once indexing is ready, you can submit queries."}
+                </p>
+                <button
+                  type="button"
+                  className="mt-3 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                  onClick={() => {
+                    ingestFormRef.current?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                >
+                  Go to ingestion
+                </button>
+              </div>
+            ) : null}
+
+            {memoryMessage !== null ? (
+              <p className="mt-2 text-xs text-slate-500">{memoryMessage}</p>
+            ) : null}
+
+            {streamingStatus !== null ? (
+              <p className="mt-2 text-xs text-slate-500">
+                Status: {streamingStatus}
+                {isStreaming ? <span className="ml-2 animate-pulse">●</span> : null}
+              </p>
+            ) : null}
+
             <button
               type="submit"
-              disabled={isQuerying}
+              disabled={isStreaming || queryLocked || queryText.trim().length === 0}
               className="mt-4 inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
             >
-              {isQuerying ? "Running ROMA plan..." : "Run Query"}
+              {isStreaming ? "Streaming..." : "Run Query"}
             </button>
           </form>
 
@@ -216,6 +320,7 @@ export default function Home(): JSX.Element {
             onSubmit={(event) => {
               void handleIngestSubmit(event);
             }}
+            ref={ingestFormRef}
             className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
           >
             <h2 className="text-lg font-semibold text-slate-900">Ingest a Document</h2>
@@ -322,6 +427,15 @@ export default function Home(): JSX.Element {
             <FailureAlert title="Agent Failure" failure={failure} className="mt-4" />
           ) : null}
 
+          {streamingText.length > 0 && result === null && failure === null ? (
+            <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-5 text-slate-900">
+              <p className="whitespace-pre-line text-base leading-relaxed">
+                {streamingText}
+                {isStreaming ? <span className="ml-1 animate-pulse">▊</span> : null}
+              </p>
+            </div>
+          ) : null}
+
           {result !== null ? (
             <div className="mt-6 space-y-6">
               <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-5 text-slate-900">
@@ -380,7 +494,7 @@ export default function Home(): JSX.Element {
                 </div>
               ) : null}
             </div>
-          ) : failure === null ? (
+          ) : failure === null && streamingText.length === 0 ? (
             <p className="mt-6 text-sm text-slate-500">
               Submit a question to see ROMA&apos;s grounded response with citations.
             </p>

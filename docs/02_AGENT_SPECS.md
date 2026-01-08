@@ -276,6 +276,8 @@ class AgentFailure(BaseModel):
 | `ERR_GUARDRAIL_INJECTION` | Prompt injection detected | Block request, warn user |
 | `ERR_GUARDRAIL_UNSAFE` | Output contains unsafe content/PII | Block response, retry with stricter instructions |
 | `ERR_CONNECTOR_AUTH` | Authentication failed (401/403) | Request new credentials or skip |
+| `ERR_CONNECTOR_BLOCKED_DOMAIN` | Domain not allowed by policy | Notify user, skip source |
+| `ERR_CONNECTOR_INVALID_CONTENT` | No extractable content from source | Notify user, skip source |
 | `ERR_CONNECTOR_NOT_FOUND` | Source not found (404) | Notify user, skip source |
 | `ERR_PARSER_ENCRYPTED` | File is password protected | Ask user for password or skip |
 | `ERR_PARSER_UNSUPPORTED` | File type not supported | Notify user, skip file |

@@ -13,6 +13,7 @@ Reference: docs/02_AGENT_SPECS.md Section 4 (Error Codes)
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
 
@@ -26,6 +27,7 @@ from app.schemas import AgentFailure, ErrorCodes
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
+    from types import TracebackType
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,21 @@ class LLMService:
                 "Anthropic provider selected but ANTHROPIC_API_KEY not configured"
             )
 
+    async def __aenter__(self) -> LLMService:
+        """Support async context management for clean shutdowns."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        _ = exc_type
+        _ = exc
+        _ = traceback
+        await self.aclose()
+
     def _get_client(self) -> AsyncOpenAI | AsyncAnthropic:
         """Get or create the LLM client (lazy initialization with caching)."""
         if self._client is not None:
@@ -79,6 +96,23 @@ class LLMService:
 
         assert self._client is not None
         return cast(AsyncOpenAI | AsyncAnthropic, self._client)
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client to release sockets."""
+        if self._client is None:
+            return
+        close_method = getattr(self._client, "aclose", None)
+        if callable(close_method):
+            result = close_method()
+            if inspect.isawaitable(result):
+                await result
+        else:
+            close_method = getattr(self._client, "close", None)
+            if callable(close_method):
+                result = close_method()
+                if inspect.isawaitable(result):
+                    await result
+        self._client = None
 
     def _get_openai_client(self) -> AsyncOpenAI:
         """Return the OpenAI client with an explicit type cast."""

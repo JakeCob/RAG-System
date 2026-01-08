@@ -124,6 +124,9 @@ select = [
 ]
 
 ignore = [
+    # Allow self/cls without annotation
+    "ANN101",
+    "ANN102",
     # Allow Any type in some cases
     "ANN401",
 ]

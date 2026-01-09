@@ -30,13 +30,14 @@
    - Click "Import"
 
 4. **Configure Project:**
-   - **Framework Preset:** Next.js (auto-detected)
-   - **Root Directory:** `.` (leave as root)
-   - **Build Command:** Automatically detected from `vercel.json`
-   - **Output Directory:** Automatically detected from `vercel.json`
+   - **Framework Preset:** Next.js (will auto-detect)
+   - **Root Directory:** Click "Edit" and set to `frontend` ⚠️ **IMPORTANT**
+   - **Build Command:** Leave default (auto-detected)
+   - **Output Directory:** Leave default (auto-detected)
+   - **Install Command:** Leave default (auto-detected)
 
 5. **Environment Variables:**
-   The `NEXT_PUBLIC_API_URL` is already configured in `vercel.json` to point to:
+   The `NEXT_PUBLIC_API_URL` is already configured in `frontend/vercel.json` to point to:
    ```
    https://rag-system-production-5f7a.up.railway.app
    ```
@@ -50,8 +51,8 @@
 #### Option 2: Via Vercel CLI
 
 ```bash
-# From project root
-cd /root/Programming\ Projects/Personal/RAG-System
+# Navigate to frontend directory
+cd /root/Programming\ Projects/Personal/RAG-System/frontend
 
 # Login to Vercel (if not already)
 vercel login
@@ -109,7 +110,8 @@ vercel
 
 ### Files for Deployment
 
-- ✅ `vercel.json` - Vercel configuration (points to frontend directory)
+- ✅ `frontend/vercel.json` - Vercel environment variables
+- ✅ `vercel.json` - Root Vercel config (git settings)
 - ✅ `.vercelignore` - Excludes backend files from deployment
 - ✅ `frontend/package.json` - Next.js dependencies
 - ✅ `frontend/next.config.js` - Next.js configuration

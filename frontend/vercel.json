@@ -1,0 +1,5 @@
+{
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://rag-system-production-5f7a.up.railway.app"
+  }
+}

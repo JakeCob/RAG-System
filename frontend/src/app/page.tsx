@@ -19,6 +19,7 @@ import type {
 } from "@/types";
 
 const PERSONAS: Persona[] = ["General", "Technical", "Executive"];
+const RECOMMENDED_INGEST_SIZE_MB = 20;
 
 type NoticeTone = "success" | "info" | "warning";
 
@@ -46,6 +47,10 @@ export default function Home(): JSX.Element {
     null,
   );
   const ingestFormRef = useRef<HTMLFormElement | null>(null);
+  const ingestFileSizeMb = ingestFile ? ingestFile.size / (1024 * 1024) : null;
+  const ingestFileTooLarge =
+    ingestFileSizeMb !== null && ingestFileSizeMb > RECOMMENDED_INGEST_SIZE_MB;
+  const ingestFileSizeLabel = ingestFileSizeMb === null ? "" : ingestFileSizeMb.toFixed(1);
 
   useEffect(() => {
     let mounted = true;
@@ -351,7 +356,15 @@ export default function Home(): JSX.Element {
               />
               {ingestFile !== null ? (
                 <p className="mt-1 text-xs text-slate-500">
-                  Selected: <span className="font-medium">{ingestFile.name}</span>
+                  Selected: <span className="font-medium">{ingestFile.name}</span>{" "}
+                  <span className="text-slate-400">({ingestFileSizeLabel} MB)</span>
+                </p>
+              ) : null}
+              {ingestFileTooLarge ? (
+                <p className="mt-2 text-xs text-amber-700">
+                  This file is {ingestFileSizeLabel} MB. Hosted ingestion can time out for large
+                  files; consider splitting the document or using a smaller upload (recommended
+                  under {RECOMMENDED_INGEST_SIZE_MB} MB).
                 </p>
               ) : null}
             </label>

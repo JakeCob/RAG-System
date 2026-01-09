@@ -3,6 +3,11 @@ const nextConfig = {
   // Strict mode for catching React issues early
   reactStrictMode: true,
 
+  // Force fresh build (cache buster)
+  generateBuildId: async () => {
+    return 'build-' + Date.now()
+  },
+
   // Enable experimental features for better performance
   experimental: {
     // Type-safe server actions

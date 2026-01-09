@@ -113,20 +113,24 @@ export default function Home(): JSX.Element {
 
     try {
       for await (const event of streamQuery({ text: trimmed, persona })) {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (event.event === "thinking") {
           setStreamingStatus(event.data);
           continue;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (event.event === "token") {
           setStreamingText((prev) => prev + event.data);
           continue;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (event.event === "complete") {
           setResult(event.data);
           setStreamingText(event.data.content);
           setStreamingStatus("Complete");
           break;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (event.event === "error") {
           setFailure(event.data);
           setStreamingStatus("Error");

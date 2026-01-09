@@ -19,6 +19,7 @@ langchain-community>=0.0.20
 # Document Parsing
 unstructured[pdf,docx,pptx,md]>=0.12.0
 python-multipart>=0.0.9
+pdfplumber>=0.10.0
 
 # Embeddings
 sentence-transformers>=2.3.0

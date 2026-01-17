@@ -255,7 +255,10 @@ export default function Home(): JSX.Element {
                   className="ml-3 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none"
                   value={persona}
                   onChange={(event) => {
-                    setPersona(event.target.value as Persona);
+                    const value = event.target.value;
+                    if (PERSONAS.includes(value as Persona)) {
+                      setPersona(value as Persona);
+                    }
                   }}
                 >
                   {PERSONAS.map((option) => (

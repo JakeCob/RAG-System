@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -125,7 +125,7 @@ export default function Home(): JSX.Element {
         }
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (event.event === "token") {
-          setStreamingText((prev) => prev + event.data);
+          setStreamingText((prev: string) => prev + event.data);
           continue;
         }
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -183,7 +183,7 @@ export default function Home(): JSX.Element {
       setIngestResult(response);
       setIngestNotice({ tone: "success", message: "Document accepted for processing." });
       setIngestFile(null);
-      setFileInputKey((value) => value + 1);
+      setFileInputKey((value: number) => value + 1);
       await refreshMemoryStatus();
     } catch (error: unknown) {
       if (error instanceof ApiError && error.failure) {

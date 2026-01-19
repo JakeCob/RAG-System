@@ -9,7 +9,7 @@ from typing import Any
 
 import lancedb
 from fastapi import FastAPI, HTTPException
-from loaders import load_from_gdrive, load_from_urls
+from .loaders import load_from_gdrive, load_from_urls
 from pydantic import BaseModel
 
 

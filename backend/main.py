@@ -149,6 +149,12 @@ async def ingest_gdrive(request: GDriveIngestRequest) -> dict[str, Any]:
     return {"status": "processed", "chunks_stored": count}
 
 
+@app.get("/health")
+async def health_check():
+    """A simple health check endpoint."""
+    return {"status": "ok"}
+
+
 @app.get("/inspect-database")
 async def inspect_database():
     """

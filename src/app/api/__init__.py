@@ -51,50 +51,287 @@ _UPLOAD_FILE_PARAM = File(...)
 
 
 @lru_cache
+
+
 def _get_memory_agent() -> MemoryAgent:
+
+
     """Lazily initialize the vector store to avoid heavy imports at startup."""
-    return MemoryAgent(db_path=".lancedb")
+
+
+    # Use the /data volume mount for persistent storage
+
+
+    return MemoryAgent(db_path="/data/lancedb")
+
+
+
+
+
+
+
+
+
 
 
 @lru_cache
+
+
 def _get_ingestion_service() -> IngestionService:
+
+
     """Provide a cached ingestion service backed by the memory agent."""
+
+
     parser = DolphinParser(enable_ocr=settings.ingest_ocr_enabled)
+
+
     return IngestionService(memory_agent=_get_memory_agent(), parser=parser)
 
 
+
+
+
+
+
+
+
+
+
 @lru_cache
+
+
 def _get_orchestrator() -> ROMAOrchestrator:
+
+
     """Provide a cached orchestrator wired to the shared memory agent."""
+
+
     return ROMAOrchestrator(
+
+
         stream_chunk_pause_ms=settings.stream_chunk_pause_ms,
+
+
         memory_agent=_get_memory_agent(),
+
+
     )
 
 
+
+
+
+
+
+
+
+
+
 app = FastAPI(
+
+
     title=settings.app_name,
+
+
     version="0.1.0",
+
+
     description="Multi-Source Agentic RAG System API",
+
+
 )
+
+
 app.add_middleware(
+
+
     CORSMiddleware,
+
+
     allow_origins=["*"],
+
+
     allow_credentials=True,
+
+
     allow_methods=["*"],
+
+
     allow_headers=["*"],
+
+
 )
+
+
+
+
+
+
+
+
+
 
 
 @app.get("/health", response_model=HealthStatus)
+
+
 async def health() -> HealthStatus:
+
+
     """Return the readiness of dependent services."""
+
+
+
+
+
+
+
 
     return HealthStatus(db="connected", agents="ready")
 
 
+
+
+
+
+
+
+@app.get("/inspect-database")
+
+
+async def inspect_database(
+
+
+    memory_agent: MemoryAgent = Depends(_get_memory_agent),
+
+
+) -> dict[str, Any]:
+
+
+    """
+
+
+    Connects to the LanceDB database and returns the schema and a sample of
+
+
+    the data from the 'documents' table.
+
+
+    """
+
+
+    table_name = "documents"  # As defined in lancedb_store.py
+
+
+    try:
+
+
+        table = memory_agent.store.db.open_table(table_name)
+
+
+    except Exception as e:
+
+
+        raise HTTPException(
+
+
+            status_code=404,
+
+
+            detail=f"Table '{table_name}' not found. Has any data been ingested? Error: {e}",
+
+
+        )
+
+
+
+
+
+    # Get schema and convert to a readable string format
+
+
+    schema_str = str(table.schema)
+
+
+
+
+
+    # Get the first 5 records as a list of dictionaries
+
+
+    try:
+
+
+        sample_data = table.search().limit(5).to_list()
+
+
+    except Exception as e:
+
+
+        raise HTTPException(
+
+
+            status_code=500,
+
+
+            detail=f"Failed to retrieve data from table. It might be empty. Error: {e}",
+
+
+        )
+
+
+
+
+
+    # Remove the bulky 'embedding' for a clean response
+
+
+    for record in sample_data:
+
+
+        if "embedding" in record:
+
+
+            del record["embedding"]
+
+
+
+
+
+    return {
+
+
+        "status": "success",
+
+
+        "table_name": table_name,
+
+
+        "schema": schema_str,
+
+
+        "sample_records_count": len(sample_data),
+
+
+        "sample_records": sample_data,
+
+
+    }
+
+
+
+
+
+
+
+
 @app.get("/memory/status", response_model=MemoryStatus)
+
+
 async def memory_status() -> MemoryStatus:
+
+
     """Return summary stats for indexed documents."""
 
     memory = _get_memory_agent()

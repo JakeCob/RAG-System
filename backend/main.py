@@ -147,3 +147,48 @@ async def ingest_gdrive(request: GDriveIngestRequest) -> dict[str, Any]:
             count += 1
 
     return {"status": "processed", "chunks_stored": count}
+
+
+@app.get("/inspect-database")
+async def inspect_database():
+    """
+    Connects to the LanceDB database and returns the schema and a sample of
+    the data from the 'knowledge_base' table.
+    """
+    if not db:
+        raise HTTPException(status_code=500, detail="Vector DB not active")
+
+    table_name = "knowledge_base"
+    try:
+        table = db.open_table(table_name)
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Table '{table_name}' not found. Has any data been ingested? Error: {e}",
+        )
+
+    # Get schema and convert to a readable string format
+    schema_str = str(table.schema)
+
+    # Get the first 5 records as a list of dictionaries
+    try:
+        sample_data = table.search().limit(5).to_list()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve data from table. It might be empty. Error: {e}",
+        )
+
+
+    # Remove the bulky 'vector' embedding for a clean response
+    for record in sample_data:
+        if "vector" in record:
+            del record["vector"]
+
+    return {
+        "status": "success",
+        "table_name": table_name,
+        "schema": schema_str,
+        "sample_records_count": len(sample_data),
+        "sample_records": sample_data,
+    }
